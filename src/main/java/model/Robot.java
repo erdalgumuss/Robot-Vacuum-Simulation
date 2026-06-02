@@ -84,6 +84,21 @@ public class Robot {
         telemetry.setMotor(load, voltage, rpm);
     }
 
+    // Odometri (tahmini konum + güven) — yalnız gösterim; navigasyon gerçek konumu kullanır
+    public double estimatedX() { return telemetry.estimatedX(); }
+    public double estimatedY() { return telemetry.estimatedY(); }
+    public double poseConfidence() { return telemetry.poseConfidence(); }
+
+    public void setPoseEstimate(double x, double y, double confidence) {
+        telemetry.setPoseEstimate(x, y, confidence);
+    }
+
+    // Fiziksel temas (çarpma) — kısa süre canlı kalır ki tampon animasyonu/sesi görünür olsun
+    private int contactTicks;
+    public boolean isContact() { return contactTicks > 0; }
+    public void triggerContact() { contactTicks = 18; }
+    public void decayContact() { if (contactTicks > 0) contactTicks--; }
+
     // --- Hareket izi ---
 
     public void recordTrail() {

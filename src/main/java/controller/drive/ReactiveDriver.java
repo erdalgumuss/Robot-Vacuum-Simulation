@@ -58,6 +58,14 @@ public class ReactiveDriver implements Driver {
     private final Map<Integer, Long> deferred = new HashMap<>();
     private static final long DEFER_TICKS = 400;
 
+    // Mekik (boustrophedon) yön durumu: +1 doğu, -1 batı
+    private int sweepDirX = 1;
+
+    // Odometri: robotun tahmin ettiği konum (gerçek hareket + küçük hata birikimi)
+    private double estX;
+    private double estY;
+    private static final double DRIFT_RATE = 0.05; // hareket başına hata oranı
+
     // Tik içi telemetri girdileri
     private boolean tickCleaning;
     private double tickDirtResistance;
@@ -112,9 +120,13 @@ public class ReactiveDriver implements Driver {
         deferred.clear();
         goalRow = -1;
         goalCol = -1;
+        sweepDirX = 1;
         returningToFinish = false;
         noProgressTicks = 0;
         lastDistToWp = Double.MAX_VALUE;
+        estX = robot.x();
+        estY = robot.y();
+        robot.setPoseEstimate(estX, estY, 1.0);
     }
 
     // --- Ana tik ---
@@ -122,6 +134,7 @@ public class ReactiveDriver implements Driver {
     @Override
     public void step(double dt) {
         tick++;
+        robot.decayContact();
         KnownMap map = robot.knownMap();
         if (map == null) {
             return; // gerçekçi mod kurulmadıysa
@@ -137,6 +150,8 @@ public class ReactiveDriver implements Driver {
         tickDirtResistance = 0;
         tickMoved = 0;
         double headingBefore = robot.heading();
+        double prevX = robot.x();
+        double prevY = robot.y();
 
         switch (robot.state()) {
             case IDLE, STUCK, FINISHED -> { /* hareket yok */ }
@@ -145,8 +160,9 @@ public class ReactiveDriver implements Driver {
             case CLEANING -> cleaningStep(dt, reading, map);
         }
 
-        // 3) Motor telemetrisi
+        // 3) Motor telemetrisi + odometri (drift)
         updateTelemetry(dt, headingBefore, reading);
+        updateOdometry(prevX, prevY);
     }
 
     // --- Temizlik modu ---
@@ -183,14 +199,13 @@ public class ReactiveDriver implements Driver {
             return;
         }
 
-        // 3) Hedef yoksa belief üzerinde en yakın keşfedilmemiş hücreyi seç
-        //    (geçici olarak ertelenmiş hedefleri atlayarak)
+        // 3) Hedef yoksa mekik (boustrophedon) planlamasıyla yeni hedef seç
         if (path.isEmpty()) {
-            List<int[]> p = beliefPathTo(map, (rr, cc) -> !map.isCleaned(rr, cc) && !isDeferred(rr, cc));
+            List<int[]> p = beliefPathBoustrophedon(map);
             if (p.isEmpty()) {
                 // Belki tüm hedefler ertelendi: ertelemeleri temizleyip tekrar dene
                 deferred.clear();
-                p = beliefPathTo(map, (rr, cc) -> !map.isCleaned(rr, cc));
+                p = beliefPathBoustrophedon(map);
                 if (p.isEmpty()) {
                     beginReturn(true); // keşif gerçekten bitti, eve dön ve tamamla
                     return;
@@ -278,8 +293,8 @@ public class ReactiveDriver implements Driver {
             noProgressTicks = 0;
             lastDistToWp = Double.MAX_VALUE;
         } else if (aligned && !moved) {
-            // Hizalıyım ama ilerleyemedim = haritada olmayan gerçek engel.
-            // Bu hedefi bir süre ertele, başka keşif noktasına yönel.
+            // Hizalıyım ama ilerleyemedim = haritada olmayan gerçek engele ÇARPTIM.
+            robot.triggerContact();   // tampon animasyonu + tık sesi için temas sinyali
             deferGoal();
             path.clear();
             bumpTurn(reading);
@@ -392,6 +407,29 @@ public class ReactiveDriver implements Driver {
         robot.setMotorTelemetry(load, voltage, rpm);
     }
 
+    /**
+     * Odometri: robotun tahmini konumu gerçek harekete küçük rastgele hata
+     * eklenerek ilerler; bu yüzden zamanla gerçeklikten sapar (drift). İstasyona
+     * varınca yeniden konumlanır (re-localization) ve güven 1'e döner.
+     * NOT: yalnızca gösterim amaçlıdır; navigasyon gerçek konumu kullanır.
+     */
+    private void updateOdometry(double prevX, double prevY) {
+        double dx = robot.x() - prevX;
+        double dy = robot.y() - prevY;
+        double moved = Math.hypot(dx, dy);
+        if (moved > 0) {
+            estX += dx + random.nextGaussian() * DRIFT_RATE * moved;
+            estY += dy + random.nextGaussian() * DRIFT_RATE * moved;
+        }
+        if (cellRow() == room.stationRow() && cellCol() == room.stationCol()) {
+            estX = robot.x();   // dock'ta yeniden konumlan
+            estY = robot.y();
+        }
+        double drift = Math.hypot(estX - robot.x(), estY - robot.y());
+        double confidence = 1.0 / (1.0 + drift / SimConstants.CELL_SIZE);
+        robot.setPoseEstimate(estX, estY, confidence);
+    }
+
     // --- Belief üzerinde BFS (en yakın hedef hücreye yol) ---
 
     private List<int[]> beliefPathTo(KnownMap map, BiPredicate<Integer, Integer> isTarget) {
@@ -424,6 +462,75 @@ public class ReactiveDriver implements Driver {
                     q.add(new int[]{nr, nc});
                 }
             }
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * Mekik (boustrophedon) planlaması: belief üzerinde tüm erişilebilir alanı
+     * tarar; mevcut satırda <b>tarama yönünde en uzaktaki</b> temizlenmemiş hücreyi
+     * hedef alır (satırı baştan sona süpür). O satır bitince en yakın temizlenmemiş
+     * hücreye geçer ve yönü çevirir (serpantin). Güvenli fallback: en yakın hücre.
+     */
+    private List<int[]> beliefPathBoustrophedon(KnownMap map) {
+        int sr = cellRow();
+        int sc = cellCol();
+        int rows = map.rows();
+        int cols = map.cols();
+        boolean[][] visited = new boolean[rows][cols];
+        int[][] pr = new int[rows][cols];
+        int[][] pc = new int[rows][cols];
+        int[][] dist = new int[rows][cols];
+        Deque<int[]> q = new ArrayDeque<>();
+        q.add(new int[]{sr, sc});
+        visited[sr][sc] = true;
+        int[][] moves = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+
+        int rowTargetCol = Integer.MIN_VALUE; // aynı satırda, tarama yönünde en uzak
+        int rowTargetRow = -1;
+        int nearestRow = -1, nearestCol = -1, nearestDist = Integer.MAX_VALUE;
+
+        while (!q.isEmpty()) {
+            int[] cur = q.poll();
+            int r = cur[0], c = cur[1];
+            boolean candidate = !(r == sr && c == sc) && !map.isCleaned(r, c) && !isDeferred(r, c);
+            if (candidate) {
+                if (dist[r][c] < nearestDist) {
+                    nearestDist = dist[r][c];
+                    nearestRow = r;
+                    nearestCol = c;
+                }
+                if (r == sr && (c - sc) * sweepDirX > 0) {
+                    int ahead = (c - sc) * sweepDirX;
+                    if (ahead > rowTargetCol) {
+                        rowTargetCol = ahead;
+                        rowTargetRow = r;
+                    }
+                }
+            }
+            for (int[] m : moves) {
+                int nr = r + m[0];
+                int nc = c + m[1];
+                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited[nr][nc]
+                        && map.at(nr, nc) != KnownMap.Belief.OBSTACLE) {
+                    visited[nr][nc] = true;
+                    pr[nr][nc] = r;
+                    pc[nr][nc] = c;
+                    dist[nr][nc] = dist[r][c] + 1;
+                    q.add(new int[]{nr, nc});
+                }
+            }
+        }
+
+        if (rowTargetRow >= 0) {
+            // Aynı satırı süpürmeye devam
+            int targetCol = sc + rowTargetCol * sweepDirX;
+            return reconstruct(pr, pc, sr, sc, rowTargetRow, targetCol);
+        }
+        if (nearestRow >= 0) {
+            // Satır bitti: en yakın temizlenmemiş hücreye geç ve tarama yönünü çevir
+            sweepDirX = -sweepDirX;
+            return reconstruct(pr, pc, sr, sc, nearestRow, nearestCol);
         }
         return Collections.emptyList();
     }

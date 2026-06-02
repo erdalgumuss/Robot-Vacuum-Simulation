@@ -34,7 +34,7 @@ public class RoomCanvas extends Canvas {
     private static final Color TRAIL = Color.web("#38bdf8", 0.55);
     private static final Color ROBOT_BODY = Color.web("#e5e7eb");
     private static final Color ROBOT_EDGE = Color.web("#0f172a");
-    private static final Color HEATMAP = Color.web("#38bdf8", 0.16);
+    private static final Color MISSED = Color.web("#ef4444", 0.32);   // atlanan erişilebilir hücre
     private static final Color CARPET_TINT = Color.web("#3f6f6f", 0.32);   // halı yüzeyi
     private static final Color FOG = Color.web("#070b14", 0.86);           // keşfedilmemiş alan
     private static final Color BELIEF_OBSTACLE = Color.web("#ef4444", 0.5);
@@ -42,6 +42,12 @@ public class RoomCanvas extends Canvas {
 
     private final double cell = SimConstants.CELL_SIZE;
     private final SpriteAssets sprites = new SpriteAssets();
+
+    // Mantıksal dünyayı (cols*38 x rows*38) canvas'a sığdıran ölçek + ortalama ofseti.
+    // Böylece pencere büyüdükçe saha da büyür (responsive).
+    private double viewScale = 1;
+    private double viewOffsetX = 0;
+    private double viewOffsetY = 0;
 
     /** (row, col) tiklama geri cagrisi (Main tarafindan baglanir). */
     public interface CellClickHandler {
@@ -59,8 +65,11 @@ public class RoomCanvas extends Canvas {
     }
 
     private void fire(CellClickHandler handler, double px, double py) {
-        int col = (int) (px / cell);
-        int row = (int) (py / cell);
+        // Ekran pikselini -> mantıksal koordinata çevir (ölçek + ofset geri al)
+        double lx = (px - viewOffsetX) / viewScale;
+        double ly = (py - viewOffsetY) / viewScale;
+        int col = (int) (lx / cell);
+        int row = (int) (ly / cell);
         handler.onCellClicked(row, col);
     }
 
@@ -79,9 +88,24 @@ public class RoomCanvas extends Canvas {
         g.setFill(BG);
         g.fillRect(0, 0, getWidth(), getHeight());
 
+        // Mantıksal dünyayı canvas'a sığdır (en boy oranını koruyarak, ortalanmış)
+        double worldW = room.cols() * cell;
+        double worldH = room.rows() * cell;
+        double s = Math.min(getWidth() / worldW, getHeight() / worldH);
+        if (!(s > 0) || Double.isInfinite(s)) {
+            s = 1;
+        }
+        viewScale = s;
+        viewOffsetX = (getWidth() - worldW * s) / 2.0;
+        viewOffsetY = (getHeight() - worldH * s) / 2.0;
+
+        g.save();
+        g.translate(viewOffsetX, viewOffsetY);
+        g.scale(s, s);
+
         drawCells(g, room, reachable);
         drawFurnitureLayer(g, room);
-        drawCoverageHeatmap(g, room);
+        drawCoverageHeatmap(g, room, robot, reachable);
 
         boolean hasBelief = realistic && robot != null && robot.knownMap() != null;
         if (hasBelief && showBelief) {
@@ -96,6 +120,8 @@ public class RoomCanvas extends Canvas {
             }
             drawRobot(g, robot, realistic);
         }
+
+        g.restore();
     }
 
     /** Robotun yalnızca keşfettiği alanı gösterir; bilinmeyeni karartır (fog-of-war). */
@@ -190,17 +216,31 @@ public class RoomCanvas extends Canvas {
         g.fillRect(x, y, cell, cell);
     }
 
-    private void drawCoverageHeatmap(GraphicsContext g, Room room) {
+    /**
+     * Kapsama ısı haritası: çok gezilen hücreler daha parlak (gereksiz tekrar),
+     * temizlik bittiğinde erişilebilir ama hiç gezilmemiş ("atlanan") hücreler
+     * kırmızı ile vurgulanır — kapsama raporu gibi.
+     */
+    private void drawCoverageHeatmap(GraphicsContext g, Room room, Robot robot, boolean[][] reachable) {
+        boolean finished = robot != null && robot.state() == model.RobotState.FINISHED;
         for (int r = 0; r < room.rows(); r++) {
             for (int c = 0; c < room.cols(); c++) {
                 Cell cellModel = room.cell(r, c);
-                if (!cellModel.type().isCleanable() || !cellModel.isVisited()) {
+                if (!cellModel.type().isCleanable()) {
                     continue;
                 }
-                double x = c * cell;
-                double y = r * cell;
-                g.setFill(HEATMAP);
-                g.fillRoundRect(x + 3, y + 3, cell - 6, cell - 6, 10, 10);
+                double x = c * cell, y = r * cell;
+                int vc = cellModel.visitCount();
+                if (vc == 0) {
+                    if (finished && reachable != null && reachable[r][c]) {
+                        g.setFill(MISSED);
+                        g.fillRoundRect(x + 3, y + 3, cell - 6, cell - 6, 10, 10);
+                    }
+                } else {
+                    double t = Math.min(1.0, vc / 40.0); // gezme yoğunluğu
+                    g.setFill(Color.web("#38bdf8", 0.10 + 0.24 * t));
+                    g.fillRoundRect(x + 3, y + 3, cell - 6, cell - 6, 10, 10);
+                }
             }
         }
     }
@@ -383,6 +423,19 @@ public class RoomCanvas extends Canvas {
             g.setStroke(Color.web("#0ea5e9"));
             g.setLineWidth(3);
             g.strokeLine(cx, cy, hx, hy);
+        }
+
+        // Çarpma tamponu: bir engele değince ön tarafta kırmızı yay parlar
+        if (realistic) {
+            SensorReading rd = robot.lastReading();
+            if (robot.isContact() || (rd != null && rd.anyBump())) {
+                double br = radius + 5;
+                double startDeg = -Math.toDegrees(robot.heading()) - 50;
+                g.setStroke(Color.web("#ef4444", 0.9));
+                g.setLineWidth(4);
+                g.strokeArc(cx - br, cy - br, br * 2, br * 2, startDeg, 100,
+                        javafx.scene.shape.ArcType.OPEN);
+            }
         }
 
         // Batarya durumuna gore renkli halka (yesil -> sari -> kirmizi)

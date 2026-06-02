@@ -40,6 +40,7 @@ public class ControlPanel extends VBox {
     // Gerçekçi mod görselleştirme anahtarları (varsayılan açık)
     private boolean showBelief = true;
     private boolean showRays = true;
+    private boolean soundOn = true;
 
     // Algoritma radyoları (gerçekçi modda pasifleştirmek için referans tutulur)
     private final java.util.List<RadioButton> algoRadios = new java.util.ArrayList<>();
@@ -78,6 +79,7 @@ public class ControlPanel extends VBox {
     public FurnitureType selectedFurniture() { return selectedFurniture; }
     public boolean showBelief() { return showBelief; }
     public boolean showRays() { return showRays; }
+    public boolean soundOn() { return soundOn; }
 
     /** Her karede Main tarafindan cagrilir: robot durum etiketlerini tazeler. */
     public void updateRobotStatus(Robot robot) {
@@ -217,11 +219,16 @@ public class ControlPanel extends VBox {
         raysBox.getStyleClass().add("radio");
         raysBox.setOnAction(e -> showRays = raysBox.isSelected());
 
+        CheckBox soundBox = new CheckBox("Ses Efektleri");
+        soundBox.setSelected(soundOn);
+        soundBox.getStyleClass().add("radio");
+        soundBox.setOnAction(e -> soundOn = soundBox.isSelected());
+
         Label hint = new Label("Gerçekçi modda robot odayı bilmez; sensörleriyle öğrenir.");
         hint.getStyleClass().add("hint");
         hint.setWrapText(true);
 
-        return new VBox(6, god, real, beliefBox, raysBox, hint);
+        return new VBox(6, god, real, beliefBox, raysBox, soundBox, hint);
     }
 
     private void setAlgoRadiosEnabled(boolean enabled) {

@@ -339,12 +339,12 @@ public class TestRunner {
         check("engelsiz ışın SENSOR_RANGE döner",
                 Math.abs(rOpen.rayDistances()[mid] - SimConstants.SENSOR_RANGE) < 1e-6);
 
-        // Doğuda mobilya: orta ışın mesafesi ~ kenar-yarıçap (±RAY_STEP)
+        // Doğuda (1 hücre ötede) mobilya: orta ışın mesafesi ~ kenar-yarıçap (±RAY_STEP)
         Room blocked = new Room(9, 9);
-        blocked.setFurniture(4, 6);
+        blocked.setFurniture(4, 5);
         Robot r2 = robotAtCell(4, 4, Direction.EAST.angleRadians());
         SensorReading rHit = PerceptionService.sense(blocked, r2);
-        double edge = 6 * CELL - (4 * CELL + CELL / 2.0); // merkez->engel ön kenarı
+        double edge = 5 * CELL - (4 * CELL + CELL / 2.0); // merkez->engel ön kenarı
         double expected = edge - SimConstants.ROBOT_RADIUS;
         double d = rHit.rayDistances()[mid];
         check("engel ışını yaklaşık doğru mesafe verir",

@@ -11,6 +11,11 @@ public class RobotTelemetry {
     private double motorVoltage;
     private double wheelRpm;
 
+    // Odometri: robotun KENDİ tahmin ettiği konum (zamanla saparak gerçeklikten ayrışır)
+    private double estimatedX;
+    private double estimatedY;
+    private double poseConfidence = 1.0; // 1 = tam emin, 0 = kayıp
+
     public double motorLoad() {
         return motorLoad;
     }
@@ -29,7 +34,20 @@ public class RobotTelemetry {
         this.wheelRpm = rpm;
     }
 
+    public double estimatedX() { return estimatedX; }
+    public double estimatedY() { return estimatedY; }
+    public double poseConfidence() { return poseConfidence; }
+
+    public void setPoseEstimate(double x, double y, double confidence) {
+        this.estimatedX = x;
+        this.estimatedY = y;
+        this.poseConfidence = confidence;
+    }
+
     public void reset() {
         setMotor(0, 0, 0);
+        estimatedX = 0;
+        estimatedY = 0;
+        poseConfidence = 1.0;
     }
 }

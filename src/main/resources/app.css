@@ -150,6 +150,24 @@
     -fx-effect: dropshadow(gaussian, rgba(56,189,248,0.36), 8, 0.2, 0, 0);
 }
 
+/* ---------- Yan kaydırma panelleri ---------- */
+.side-scroll, .side-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+.side-scroll {
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+.side-scroll > .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 10;
+}
+.side-scroll > .scroll-bar:vertical > .thumb {
+    -fx-background-color: #334155;
+    -fx-background-radius: 6;
+}
+
 /* ---------- Sağ telemetri paneli (gerçekçi mod) ---------- */
 .telemetry-panel {
     -fx-background-color: #101827;

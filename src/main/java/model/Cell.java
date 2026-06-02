@@ -17,6 +17,7 @@ public class Cell {
     private DirtType dirt;             // null => temiz
     private double cleaningProgress;   // 0.0 .. 1.0 (kismi temizlik durumu)
     private boolean visited;           // robotun en az bir kez ustunden gectigi
+    private int visitCount;            // kac kez ustunden gecildi (kapsama isi haritasi)
     private SurfaceType surface = SurfaceType.HARD_FLOOR; // zemin yuzeyi (hali vb.)
 
     public Cell(int row, int col, CellType type) {
@@ -39,7 +40,11 @@ public class Cell {
 
     public double cleaningProgress() { return cleaningProgress; }
     public boolean isVisited() { return visited; }
-    public void markVisited() { this.visited = true; }
+    public int visitCount() { return visitCount; }
+    public void markVisited() {
+        this.visited = true;
+        this.visitCount++;
+    }
 
     public SurfaceType surface() { return surface; }
     public void setSurface(SurfaceType surface) { this.surface = surface; }
@@ -77,5 +82,6 @@ public class Cell {
         this.dirt = null;
         this.cleaningProgress = 0.0;
         this.visited = false;
+        this.visitCount = 0;
     }
 }

@@ -27,7 +27,7 @@ public final class SimConstants {
     // --- Gercekci mod: sensorler ---
     public static final int SENSOR_RAY_COUNT = 7;                 // ileri yaydaki isin sayisi
     public static final double SENSOR_ARC = Math.toRadians(120);  // yay genisligi (radyan)
-    public static final double SENSOR_RANGE = 3 * CELL_SIZE;      // maksimum algilama menzili
+    public static final double SENSOR_RANGE = 1.4 * CELL_SIZE;    // algilama menzili (kisa gorus -> daha cok carpma, Roomba hissi)
     public static final double RAY_STEP = ROBOT_RADIUS / 2.0;     // raycast adim boyu
     public static final double BUMP_DIST = 3.0;                   // bu mesafenin altinda temas
 

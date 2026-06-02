@@ -37,6 +37,7 @@ public class TelemetryPanel extends VBox {
     private final Label voltageLabel = new Label("—");
     private final Label loadLabel = new Label("—");
     private final Label rpmLabel = new Label("—");
+    private final Label poseConfLabel = new Label("—");
     private final Label dirtChip = new Label("Kir Yok");
     private final Label carpetChip = new Label("Sert Zemin");
 
@@ -82,7 +83,8 @@ public class TelemetryPanel extends VBox {
         return new VBox(6,
                 metricRow("Voltaj", voltageLabel), voltageBar,
                 metricRow("Zorlanma", loadLabel), loadBar,
-                metricRow("Devir", rpmLabel));
+                metricRow("Devir", rpmLabel),
+                metricRow("Konum Güveni", poseConfLabel));
     }
 
     private HBox metricRow(String key, Label value) {
@@ -120,6 +122,7 @@ public class TelemetryPanel extends VBox {
         voltageLabel.setText(String.format("%.1f V", v));
         loadLabel.setText(String.format("%%%.0f", load * 100));
         rpmLabel.setText(String.format("%.0f RPM", robot.wheelRpm()));
+        poseConfLabel.setText(realistic ? String.format("%%%.0f", robot.poseConfidence() * 100) : "—");
 
         SensorReading rd = robot.lastReading();
         boolean dirt = realistic && rd != null && rd.dirtDetected();
@@ -169,14 +172,22 @@ public class TelemetryPanel extends VBox {
                 }
             }
         }
-        // Robot pozu
-        double rx = (robot.x() / SimConstants.CELL_SIZE) * cs;
-        double ry = (robot.y() / SimConstants.CELL_SIZE) * cs;
+        // Gerçek konum (soluk hayalet) vs robotun TAHMİN ettiği konum (cyan) — arası = drift
+        double trx = (robot.x() / SimConstants.CELL_SIZE) * cs;
+        double tryy = (robot.y() / SimConstants.CELL_SIZE) * cs;
+        double ex = (robot.estimatedX() / SimConstants.CELL_SIZE) * cs;
+        double ey = (robot.estimatedY() / SimConstants.CELL_SIZE) * cs;
+
+        g.setFill(Color.web("#94a3b8", 0.5));
+        g.fillOval(trx - 2.5, tryy - 2.5, 5, 5);          // gerçek konum (hayalet)
+        g.setStroke(Color.web("#f59e0b", 0.7));
+        g.setLineWidth(1);
+        g.strokeLine(trx, tryy, ex, ey);                   // drift çizgisi
         g.setFill(Color.web("#38bdf8"));
-        g.fillOval(rx - 3, ry - 3, 6, 6);
+        g.fillOval(ex - 3, ey - 3, 6, 6);                  // robotun kendini sandığı yer
         g.setStroke(Color.web("#38bdf8"));
         g.setLineWidth(1.5);
-        g.strokeLine(rx, ry, rx + Math.cos(robot.heading()) * 8, ry + Math.sin(robot.heading()) * 8);
+        g.strokeLine(ex, ey, ex + Math.cos(robot.heading()) * 8, ey + Math.sin(robot.heading()) * 8);
     }
 
     private void drawRadar(Robot robot, boolean realistic) {

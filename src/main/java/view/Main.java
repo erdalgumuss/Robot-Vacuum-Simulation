@@ -3,11 +3,16 @@ package view;
 import controller.SimulationManager;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import model.LayoutType;
@@ -29,6 +34,7 @@ public class Main extends Application {
     private ControlPanel controlPanel;
     private StatusPanel statusPanel;
     private TelemetryPanel telemetryPanel;
+    private final SoundManager sound = new SoundManager();
 
     // Surukleyerek cizimde ayni hucreyi tekrar tekrar islemeyi onler
     private int lastEditRow = -1;
@@ -46,22 +52,31 @@ public class Main extends Application {
         statusPanel = new StatusPanel();
         telemetryPanel = new TelemetryPanel(sim.room().rows(), sim.room().cols());
 
-        StackPane canvasHolder = new StackPane(canvas);
+        // Saha: canvas kapsayıcıya bağlanır -> pencere büyüdükçe saha da büyür
+        Pane canvasHolder = new Pane(canvas);
+        canvasHolder.setMinSize(0, 0);
         canvasHolder.getStyleClass().add("canvas-holder");
+        canvas.widthProperty().bind(canvasHolder.widthProperty());
+        canvas.heightProperty().bind(canvasHolder.heightProperty());
 
         BorderPane center = new BorderPane();
         center.setCenter(canvasHolder);
         center.setBottom(statusPanel);
 
+        // Sol ve sağ paneller kaydırılabilir (uzun panel taşmasın)
+        ScrollPane leftScroll = sideScroll(controlPanel, SimConstants.PANEL_WIDTH);
+        ScrollPane rightScroll = sideScroll(telemetryPanel, SimConstants.TELEMETRY_PANEL_WIDTH);
+
         BorderPane body = new BorderPane();
-        body.setLeft(controlPanel);
+        body.setLeft(leftScroll);
         body.setCenter(center);
-        body.setRight(telemetryPanel);
+        body.setRight(rightScroll);
         body.getStyleClass().add("body");
 
         CustomTitleBar titleBar = new CustomTitleBar(stage);
         VBox root = new VBox(titleBar, body);
         root.getStyleClass().add("root");
+        VBox.setVgrow(body, Priority.ALWAYS); // gövde başlık altındaki tüm alanı doldurur
 
         Scene scene = new Scene(root);
         scene.setFill(Color.TRANSPARENT);
@@ -70,10 +85,28 @@ public class Main extends Application {
         stage.initStyle(StageStyle.UNDECORATED);
         stage.setScene(scene);
         stage.setTitle("Robot Süpürge Simülasyonu");
-        stage.centerOnScreen();
+
+        // Pencereyi ekranın kullanılabilir alanına (görev çubuğu hariç) sığdır
+        Rectangle2D vb = Screen.getPrimary().getVisualBounds();
+        stage.setX(vb.getMinX());
+        stage.setY(vb.getMinY());
+        stage.setWidth(vb.getWidth());
+        stage.setHeight(vb.getHeight());
         stage.show();
 
         startLoop();
+    }
+
+    /** Yan paneli dikey kaydırılabilir sarmalar (uzun içerik taşmasın). */
+    private ScrollPane sideScroll(Region content, double width) {
+        ScrollPane sp = new ScrollPane(content);
+        sp.setFitToWidth(true);
+        sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        sp.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        sp.setMinWidth(width + 18);
+        sp.setPrefWidth(width + 18);
+        sp.getStyleClass().add("side-scroll");
+        return sp;
     }
 
     private void handleCellEdit(int row, int col) {
@@ -105,6 +138,7 @@ public class Main extends Application {
                 controlPanel.updateRobotStatus(robot);
                 statusPanel.update(sim);
                 telemetryPanel.update(sim);
+                sound.update(sim, controlPanel.soundOn());
             }
         }.start();
     }
