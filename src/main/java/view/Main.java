@@ -98,8 +98,10 @@ public class Main extends Application {
                 Room room = sim.room();
                 Robot robot = sim.robot();
                 boolean realistic = sim.mode() == model.SimulationMode.REALISTIC;
+                // Fog yalnız robot çalışırken; duraklatınca gerçek oda görünür (rahat düzenleme).
+                boolean fog = realistic && controlPanel.showBelief() && sim.isRunning();
                 canvas.render(room, robot, sim.reachableFromStation(),
-                        realistic, controlPanel.showBelief(), controlPanel.showRays());
+                        realistic, fog, controlPanel.showRays());
                 controlPanel.updateRobotStatus(robot);
                 statusPanel.update(sim);
                 telemetryPanel.update(sim);

@@ -83,13 +83,13 @@ java -cp "target/classes;target/test-classes" apptest.TestRunner
 Son doğrulama sonucu:
 
 ```text
-70 geçti, 0 kaldı
+72 geçti, 0 kaldı
 ```
 
 Test kapsamı; BFS/A*, erişilebilirlik, kir temizleme süreleri, batarya yönetimi,
 düşük batarya dönüşü, sıfırlama, ulaşılamaz alan, algoritma regresyonları,
 sensör ışınları, inanç haritası, gerçekçi mod, motor modeli ve mod geçişlerini
-içerir.
+içerir. Kirli hücreye mobilya yerleştirme regresyonu da ayrıca korunur.
 
 ## Ödev Gereksinimleriyle Uyum
 

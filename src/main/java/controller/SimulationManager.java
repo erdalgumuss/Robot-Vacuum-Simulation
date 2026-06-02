@@ -92,8 +92,9 @@ public class SimulationManager {
                 }
             }
         }
-        room.placeFurniture(type, row, col);
-        recomputeReachability();
+        if (room.placeFurniture(type, row, col)) {
+            recomputeReachability();
+        }
     }
 
     public LayoutType layout() {

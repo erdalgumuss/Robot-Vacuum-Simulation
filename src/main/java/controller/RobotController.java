@@ -46,7 +46,8 @@ public class RobotController {
             this.active = reactiveDriver; // KnownMap ReactiveDriver.resetToStation'da kurulur
         } else {
             this.active = godDriver;
-            robot.setKnownMap(null);      // God modunda belief map yok
+            robot.memory().clear();       // God modunda belief map yok
+            robot.telemetry().reset();
         }
         active.resetToStation();
     }

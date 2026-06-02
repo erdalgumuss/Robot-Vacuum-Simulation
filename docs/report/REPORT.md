@@ -240,13 +240,13 @@ flowchart TD
 (JUnit yok — ders kuralı) saf Java assertion tabanlı bir test koşucusu yazıldı:
 `src/test/java/apptest/TestRunner.java`.
 
-**70 test** geçer; kapsananlar: yön enum'u, kir süreleri, hücre temizleme, oda
+**72 test** geçer; kapsananlar: yön enum'u, kir süreleri, hücre temizleme, oda
 yapısı, BFS en-kısa-yol, A\*=BFS uzunluğu, erişilebilirlik & ulaşılamaz cep, en
 yakın kir/temizlenmemiş, stratejilerin yürünebilir yön üretmesi, Akıllı & Spiral'in
 tüm erişilebilir kiri temizleyip bitmesi (Spiral **sonsuz döngüye girmez**),
 düşük-batarya dönüşü, sıfırlamanın kiri geri yüklemesi, ulaşılamaz kirin bitişi
-engellememesi, robotun hücresine mobilya konulamaması, sensör ışınları, inanç
-haritası, gerçekçi mod, motor modeli ve mod geçiş regresyonları.
+engellememesi, robotun hücresine/kirli hücreye mobilya konulamaması, sensör
+ışınları, inanç haritası, gerçekçi mod, motor modeli ve mod geçiş regresyonları.
 
 ```powershell
 mvn test-compile

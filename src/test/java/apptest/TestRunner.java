@@ -61,6 +61,7 @@ public class TestRunner {
         testResetRestoresDirt();
         testUnreachableDirtDoesNotBlockFinish();
         testFurnitureNotPlacedOnRobot();
+        testFurnitureNotPlacedOnDirt();
         testPerceptionRaycast();
         testDirtSensor();
         testBeliefOnlyFromRays();
@@ -300,6 +301,23 @@ public class TestRunner {
         CellType after = sim.room().cell(rr, rc).type();
         check("robotun zeminine mobilya eklenmedi",
                 !(before == CellType.FLOOR && after == CellType.FURNITURE));
+    }
+
+    private static void testFurnitureNotPlacedOnDirt() {
+        section("Kirli hücreye mobilya konamaz");
+
+        SimulationManager sim = new SimulationManager(9, 12);
+        sim.addDirt(3, 3, DirtType.DUST);
+        sim.toggleFurniture(3, 3);
+        check("tek hücre mobilya kiri kapatmaz",
+                sim.room().cell(3, 3).type() == CellType.FLOOR
+                        && sim.room().cell(3, 3).isDirty());
+
+        sim.placeFurniture(model.FurnitureType.SOFA, 3, 3);
+        check("footprint mobilya kirli hücreye yerleşmez",
+                sim.room().cell(3, 3).type() == CellType.FLOOR
+                        && sim.room().cell(3, 4).type() == CellType.FLOOR
+                        && sim.room().cell(3, 3).isDirty());
     }
 
     // -------------------------------------------------- gerçekçi mod: algı

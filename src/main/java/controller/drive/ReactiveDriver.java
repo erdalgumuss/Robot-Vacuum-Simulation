@@ -16,7 +16,9 @@ import util.SimConstants;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.function.BiPredicate;
 
@@ -46,6 +48,15 @@ public class ReactiveDriver implements Driver {
     private final Deque<int[]> path = new ArrayDeque<>();
     private boolean returningToFinish;
     private int noProgressTicks;
+    private double lastDistToWp = Double.MAX_VALUE;
+    private static final double ALIGN_TOLERANCE = Math.toRadians(55); // önce yönel, sonra ilerle
+
+    // Ulaşamadığı keşif hedefini bir süre erteler (rastgele debelenme yerine başka yere yönelir)
+    private long tick;
+    private int goalRow = -1;
+    private int goalCol = -1;
+    private final Map<Integer, Long> deferred = new HashMap<>();
+    private static final long DEFER_TICKS = 400;
 
     // Tik içi telemetri girdileri
     private boolean tickCleaning;
@@ -98,14 +109,19 @@ public class ReactiveDriver implements Driver {
         robot.setLastReading(SensorReading.empty());
         robot.setMotorTelemetry(0, 0, 0);
         path.clear();
+        deferred.clear();
+        goalRow = -1;
+        goalCol = -1;
         returningToFinish = false;
         noProgressTicks = 0;
+        lastDistToWp = Double.MAX_VALUE;
     }
 
     // --- Ana tik ---
 
     @Override
     public void step(double dt) {
+        tick++;
         KnownMap map = robot.knownMap();
         if (map == null) {
             return; // gerçekçi mod kurulmadıysa
@@ -168,12 +184,22 @@ public class ReactiveDriver implements Driver {
         }
 
         // 3) Hedef yoksa belief üzerinde en yakın keşfedilmemiş hücreyi seç
+        //    (geçici olarak ertelenmiş hedefleri atlayarak)
         if (path.isEmpty()) {
-            path.addAll(beliefPathTo(map, (rr, cc) -> !map.isCleaned(rr, cc)));
-            if (path.isEmpty()) {
-                beginReturn(true); // keşif bitti, eve dön ve tamamla
-                return;
+            List<int[]> p = beliefPathTo(map, (rr, cc) -> !map.isCleaned(rr, cc) && !isDeferred(rr, cc));
+            if (p.isEmpty()) {
+                // Belki tüm hedefler ertelendi: ertelemeleri temizleyip tekrar dene
+                deferred.clear();
+                p = beliefPathTo(map, (rr, cc) -> !map.isCleaned(rr, cc));
+                if (p.isEmpty()) {
+                    beginReturn(true); // keşif gerçekten bitti, eve dön ve tamamla
+                    return;
+                }
             }
+            path.addAll(p);
+            int[] goal = p.get(p.size() - 1);
+            goalRow = goal[0];
+            goalCol = goal[1];
         }
 
         followPath(dt, reading);
@@ -226,39 +252,65 @@ public class ReactiveDriver implements Driver {
 
     // --- Serbest açılı hareket ---
 
-    /** Mevcut yol hedefine doğru döner ve ilerler; engele çarparsa seker. */
+    /**
+     * Mevcut yol hedefine doğru gider. Yay çizip orbit'e girmemek için ÖNCE
+     * hedefe yeterince yönelir, SONRA ilerler. Bir hücreye "vardım" sayması o
+     * hücreye merkezi gerçekten girdiğinde olur (erken atlama yok).
+     */
     private void followPath(double dt, SensorReading reading) {
         int[] wp = path.peekFirst();
         double tx = centerX(wp[1]);
         double ty = centerY(wp[0]);
+        double dx = tx - robot.x();
+        double dy = ty - robot.y();
+        double distToWp = Math.hypot(dx, dy);
 
-        steerToward(tx, ty, dt);
-        boolean moved = attemptMove(dt, reading.onCarpet());
+        double desired = Math.atan2(dy, dx);
+        smoothTurn(desired, dt);
+        double angleErr = Math.abs(normalizeAngle(desired - robot.heading()));
+        boolean aligned = angleErr < ALIGN_TOLERANCE;
 
-        if (!moved) {
-            path.clear();        // yol gerçekte kapalı -> yeniden planla
-            bumpTurn(reading);   // açık yöne sek
-            noProgressTicks++;
-        } else {
+        boolean moved = aligned && attemptMove(dt, reading.onCarpet());
+
+        if (cellRow() == wp[0] && cellCol() == wp[1]) {
+            // Hücreye gerçekten girildi -> vardı (markPass burayı temizledi)
+            path.pollFirst();
             noProgressTicks = 0;
-            double dx = tx - robot.x();
-            double dy = ty - robot.y();
-            if (Math.hypot(dx, dy) < R * 0.6) {
-                path.pollFirst();
-            }
+            lastDistToWp = Double.MAX_VALUE;
+        } else if (aligned && !moved) {
+            // Hizalıyım ama ilerleyemedim = haritada olmayan gerçek engel.
+            // Bu hedefi bir süre ertele, başka keşif noktasına yönel.
+            deferGoal();
+            path.clear();
+            bumpTurn(reading);
+            noProgressTicks++;
+        } else if (distToWp < lastDistToWp - 0.05) {
+            noProgressTicks = 0;        // hedefe yaklaşıyorum
+        } else if (aligned) {
+            noProgressTicks++;          // hizalı + ilerliyorum ama yaklaşmıyorum (orbit emaresi)
         }
+        lastDistToWp = distToWp;
 
         if (noProgressTicks > STUCK_TICKS) {
-            // Sıkıştı: hedefi bırak, rastgele yöne dön (Roomba kurtulma davranışı)
+            // Sıkıştı: hedefi ertele, bırak ve rastgele yöne sek (kurtulma davranışı)
+            deferGoal();
             path.clear();
             robot.setHeading(random.nextDouble() * 2 * Math.PI - Math.PI);
             noProgressTicks = 0;
+            lastDistToWp = Double.MAX_VALUE;
         }
     }
 
-    private void steerToward(double tx, double ty, double dt) {
-        double desired = Math.atan2(ty - robot.y(), tx - robot.x());
-        smoothTurn(desired, dt);
+    /** Ulaşılamayan keşif hedefini bir süre erteler (yalnız temizlik modunda). */
+    private void deferGoal() {
+        if (robot.state() == RobotState.CLEANING && goalRow >= 0) {
+            deferred.put(goalRow * room.cols() + goalCol, tick + DEFER_TICKS);
+        }
+    }
+
+    private boolean isDeferred(int row, int col) {
+        Long expiry = deferred.get(row * room.cols() + col);
+        return expiry != null && expiry > tick;
     }
 
     private void smoothTurn(double targetAngle, double dt) {

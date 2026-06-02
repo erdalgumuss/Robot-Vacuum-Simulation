@@ -27,13 +27,8 @@ public class Robot {
     /** Robotun gectigi noktalarin izi (view bunu cizgi olarak cizer). */
     private final Deque<double[]> trail = new ArrayDeque<>();
 
-    // --- Gercekci mod: robotun KENDI bellegi ve telemetrisi ---
-    // Bunlar yalnizca gercekci modda kullanilir; God modunda knownMap null kalir.
-    private KnownMap knownMap;                              // robotun ogrendigi harita
-    private SensorReading lastReading = SensorReading.empty();
-    private double motorLoad;      // 0..1 zorlanma
-    private double motorVoltage;   // V
-    private double wheelRpm;       // tekerlek devri
+    private final RobotMemory memory = new RobotMemory();
+    private final RobotTelemetry telemetry = new RobotTelemetry();
 
     public Robot(double x, double y, double battery) {
         this.x = x;
@@ -72,20 +67,21 @@ public class Robot {
 
     // --- Gercekci mod: bellek + telemetri ---
 
-    public KnownMap knownMap() { return knownMap; }
-    public void setKnownMap(KnownMap knownMap) { this.knownMap = knownMap; }
+    public RobotMemory memory() { return memory; }
+    public RobotTelemetry telemetry() { return telemetry; }
 
-    public SensorReading lastReading() { return lastReading; }
-    public void setLastReading(SensorReading reading) { this.lastReading = reading; }
+    public KnownMap knownMap() { return memory.knownMap(); }
+    public void setKnownMap(KnownMap knownMap) { memory.setKnownMap(knownMap); }
 
-    public double motorLoad() { return motorLoad; }
-    public double motorVoltage() { return motorVoltage; }
-    public double wheelRpm() { return wheelRpm; }
+    public SensorReading lastReading() { return memory.lastReading(); }
+    public void setLastReading(SensorReading reading) { memory.setLastReading(reading); }
+
+    public double motorLoad() { return telemetry.motorLoad(); }
+    public double motorVoltage() { return telemetry.motorVoltage(); }
+    public double wheelRpm() { return telemetry.wheelRpm(); }
 
     public void setMotorTelemetry(double load, double voltage, double rpm) {
-        this.motorLoad = load;
-        this.motorVoltage = voltage;
-        this.wheelRpm = rpm;
+        telemetry.setMotor(load, voltage, rpm);
     }
 
     // --- Hareket izi ---

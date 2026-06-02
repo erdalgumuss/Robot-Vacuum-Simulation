@@ -83,7 +83,7 @@ public class Room {
     // --- Engel ve kir duzenleme ---
 
     public void setFurniture(int row, int col) {
-        if (inBounds(row, col) && grid[row][col].type() == CellType.FLOOR) {
+        if (inBounds(row, col) && canPlaceFurnitureOn(row, col)) {
             grid[row][col].setType(CellType.FURNITURE);
         }
     }
@@ -119,7 +119,7 @@ public class Room {
     public boolean placeFurniture(FurnitureType type, int row, int col) {
         for (int r = row; r < row + type.rows(); r++) {
             for (int c = col; c < col + type.cols(); c++) {
-                if (!inBounds(r, c) || grid[r][c].type() != CellType.FLOOR) {
+                if (!canPlaceFurnitureOn(r, c)) {
                     return false;
                 }
             }
@@ -131,6 +131,12 @@ public class Room {
         }
         furniture.add(new FurniturePiece(type, row, col));
         return true;
+    }
+
+    private boolean canPlaceFurnitureOn(int row, int col) {
+        return inBounds(row, col)
+                && grid[row][col].type() == CellType.FLOOR
+                && !grid[row][col].isDirty();
     }
 
     /**
