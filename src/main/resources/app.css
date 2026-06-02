@@ -1,0 +1,180 @@
+/* ============================================================
+   Robot Süpürge Simülasyonu - Koyu Tema
+   BZ 214 Visual Programming
+   ============================================================ */
+
+.root {
+    -fx-background-color: #0b1020;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: #263244;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.42), 24, 0.22, 0, 10);
+}
+
+.body {
+    -fx-background-color: #0b1020;
+    -fx-padding: 0;
+}
+
+/* ---------- Başlık çubuğu ---------- */
+.title-bar {
+    -fx-background-color: linear-gradient(to right, #111827, #1e293b);
+    -fx-alignment: center-left;
+    -fx-padding: 0 12 0 16;
+    -fx-background-radius: 12 12 0 0;
+}
+.title-bar-label {
+    -fx-text-fill: #e2e8f0;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+.title-btn, .title-btn-close {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cbd5e1;
+    -fx-font-size: 14px;
+    -fx-cursor: hand;
+    -fx-min-width: 36;
+    -fx-min-height: 30;
+    -fx-background-radius: 6;
+}
+.title-btn:hover { -fx-background-color: #334155; }
+.title-btn-close:hover { -fx-background-color: #dc2626; -fx-text-fill: white; }
+
+/* ---------- Sol kontrol paneli ---------- */
+.control-panel {
+    -fx-background-color: #101827;
+    -fx-padding: 16 14 16 16;
+    -fx-border-color: transparent #263244 transparent transparent;
+    -fx-border-width: 1;
+}
+.section {
+    -fx-background-color: #121d2d;
+    -fx-background-radius: 8;
+    -fx-padding: 12;
+    -fx-border-color: #243244;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 10, 0.14, 0, 3);
+}
+.section-title {
+    -fx-text-fill: #8fd3ff;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+.sub-label, .metric-title {
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 11px;
+}
+.speed-value {
+    -fx-text-fill: #e2e8f0;
+    -fx-font-weight: bold;
+    -fx-min-width: 40;
+}
+
+/* ---------- Butonlar ---------- */
+.btn-primary, .btn-success, .btn-danger, .btn-neutral {
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 7;
+    -fx-padding: 9 12;
+    -fx-cursor: hand;
+}
+.btn-primary { -fx-background-color: #1d64d8; }
+.btn-primary:hover { -fx-background-color: #2f7af0; -fx-effect: dropshadow(gaussian, rgba(59,130,246,0.28), 12, 0.2, 0, 3); }
+.btn-success { -fx-background-color: #168f4d; }
+.btn-success:hover { -fx-background-color: #22c55e; }
+.btn-danger { -fx-background-color: #c93030; }
+.btn-danger:hover { -fx-background-color: #ef4444; }
+.btn-neutral { -fx-background-color: #2a384b; }
+.btn-neutral:hover { -fx-background-color: #3c4d63; }
+
+.chip {
+    -fx-background-color: #202c3d;
+    -fx-text-fill: #cbd5e1;
+    -fx-background-radius: 7;
+    -fx-padding: 6 8;
+    -fx-font-size: 12px;
+    -fx-cursor: hand;
+}
+.chip:selected {
+    -fx-background-color: #1d64d8;
+    -fx-text-fill: white;
+}
+.radio { -fx-text-fill: #cbd5e1; -fx-font-size: 13px; }
+
+/* Araç toggle butonları */
+.tool-toggle, .tool-toggle-success {
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 7;
+    -fx-padding: 9 12;
+    -fx-cursor: hand;
+}
+.tool-toggle { -fx-background-color: #1d64d8; }
+.tool-toggle:selected { -fx-background-color: #1652b7; -fx-border-color: #8fd3ff; -fx-border-width: 2; -fx-border-radius: 7; }
+.tool-toggle-success { -fx-background-color: #168f4d; }
+.tool-toggle-success:selected { -fx-background-color: #13753f; -fx-border-color: #86efac; -fx-border-width: 2; -fx-border-radius: 7; }
+
+.hint { -fx-text-fill: #64748b; -fx-font-size: 11px; -fx-font-style: italic; }
+
+/* Robot durumu satırları */
+.status-key { -fx-text-fill: #94a3b8; -fx-font-size: 12px; }
+.status-val { -fx-text-fill: #f1f5f9; -fx-font-size: 12px; -fx-font-weight: bold; }
+
+/* ---------- Canvas alanı ---------- */
+.canvas-holder {
+    -fx-background-color: #0b1020;
+    -fx-padding: 14;
+}
+
+/* ---------- Alt istatistik şeridi ---------- */
+.status-bar {
+    -fx-background-color: #101827;
+    -fx-padding: 8 16;
+    -fx-border-color: #263244 transparent transparent transparent;
+    -fx-border-width: 1;
+}
+.metric-value {
+    -fx-text-fill: #f1f5f9;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+/* ---------- Slider ---------- */
+.slider .track { -fx-background-color: #243244; -fx-background-radius: 4; }
+.slider .thumb {
+    -fx-background-color: #38bdf8;
+    -fx-effect: dropshadow(gaussian, rgba(56,189,248,0.36), 8, 0.2, 0, 0);
+}
+
+/* ---------- Sağ telemetri paneli (gerçekçi mod) ---------- */
+.telemetry-panel {
+    -fx-background-color: #101827;
+    -fx-padding: 16 14 16 14;
+    -fx-border-color: transparent transparent transparent #263244;
+    -fx-border-width: 1;
+}
+.telemetry-mode {
+    -fx-text-fill: #8fd3ff;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+.chip-on {
+    -fx-background-color: #16a34a;
+    -fx-text-fill: white;
+}
+.telemetry-bar > .track, .telemetry-bar-load > .track {
+    -fx-background-color: #243244;
+    -fx-background-radius: 4;
+}
+.telemetry-bar > .bar {
+    -fx-background-color: #22c55e;
+    -fx-background-radius: 4;
+}
+.telemetry-bar-load > .bar {
+    -fx-background-color: #f59e0b;
+    -fx-background-radius: 4;
+}

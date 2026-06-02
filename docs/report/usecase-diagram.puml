@@ -1,0 +1,61 @@
+@startuml RobotVacuumUseCase
+title Robot Süpürge Simülasyonu - Use-Case Diyagramı
+
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+actor "Kullanıcı" as User
+
+rectangle "Robot Süpürge Simülasyonu" {
+
+  ' --- Sahne düzenleme ---
+  usecase "Kir Ekle" as UC_Dirt
+  usecase "Kir Türü Seç\n(Toz/Sıvı/Leke)" as UC_DirtType
+  usecase "Engel (Mobilya) Ekle/Kaldır" as UC_Furniture
+
+  ' --- Simülasyon ayarları ---
+  usecase "Robot Hızını Ayarla" as UC_Speed
+  usecase "Temizlik Algoritması Seç" as UC_Algo
+  usecase "Bataryayı Elle Ayarla" as UC_Battery
+
+  ' --- Kontrol ---
+  usecase "Başlat" as UC_Start
+  usecase "Duraklat" as UC_Pause
+  usecase "Sıfırla" as UC_Reset
+  usecase "İstasyona Dön" as UC_Dock
+
+  ' --- Gözlem ---
+  usecase "Gerçek Zamanlı Durumu İzle\n(konum, yön, batarya,\ntemizlenen %, kalan, süre)" as UC_Observe
+
+  ' --- Sistem davranışları (include/extend) ---
+  usecase "Otonom Gezin & Temizle" as UC_Clean
+  usecase "Engellerden Kaç" as UC_Avoid
+  usecase "Kiri Temizle\n(tipe göre süre/batarya)" as UC_DoClean
+  usecase "Bataryayı Yönet" as UC_ManageBat
+  usecase "En Kısa Yolla İstasyona Dön\n(A*)" as UC_Path
+  usecase "Ulaşılamaz Alanı Tespit Et\n(BFS)" as UC_Unreach
+}
+
+User --> UC_Dirt
+User --> UC_DirtType
+User --> UC_Furniture
+User --> UC_Speed
+User --> UC_Algo
+User --> UC_Battery
+User --> UC_Start
+User --> UC_Pause
+User --> UC_Reset
+User --> UC_Dock
+User --> UC_Observe
+
+UC_Dirt ..> UC_DirtType : <<include>>
+UC_Start ..> UC_Clean : <<include>>
+UC_Clean ..> UC_Avoid : <<include>>
+UC_Clean ..> UC_DoClean : <<include>>
+UC_Clean ..> UC_ManageBat : <<include>>
+UC_ManageBat ..> UC_Path : <<extend>>\n(batarya düşük)
+UC_Dock ..> UC_Path : <<include>>
+UC_Clean ..> UC_Unreach : <<include>>
+
+@enduml

@@ -1,0 +1,188 @@
+@startuml RobotVacuumClassDiagram
+title Robot Süpürge Simülasyonu - Sınıf Diyagramı (MVC)
+
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+hide empty members
+
+' ============================ MODEL ============================
+package model {
+  enum Direction {
+    NORTH; EAST; SOUTH; WEST
+    +dRow(): int
+    +dCol(): int
+    +angleRadians(): double
+    +turnLeft(): Direction
+    +turnRight(): Direction
+    +opposite(): Direction
+    +display(): String
+  }
+  enum CellType {
+    FLOOR; WALL; FURNITURE; STATION
+    +isObstacle(): boolean
+    +isCleanable(): boolean
+  }
+  enum DirtType {
+    DUST; LIQUID; STAIN
+    +cleaningSeconds(): double
+    +batteryCost(): double
+    +colorHex(): String
+  }
+  enum RobotState {
+    IDLE; CLEANING; RETURNING
+    CHARGING; STUCK; FINISHED
+  }
+  enum AlgorithmType {
+    RANDOM; SPIRAL; WALL_FOLLOW; SMART
+  }
+
+  class Cell {
+    -row: int
+    -col: int
+    -type: CellType
+    -dirt: DirtType
+    -cleaningProgress: double
+    -visited: boolean
+    +applyCleaning(amount): boolean
+    +setDirt(DirtType)
+    +markVisited()
+    +isWalkable(): boolean
+  }
+  class Room {
+    -rows: int
+    -cols: int
+    -grid: Cell[][]
+    -stationRow: int
+    -stationCol: int
+    +cell(r,c): Cell
+    +isWalkable(r,c): boolean
+    +addDirt(r,c,DirtType)
+    +setFurniture(r,c)
+    +totalFloorCells(): int
+    +dirtyCellCount(): int
+    +visitedFloorCells(): int
+  }
+  class Robot {
+    -x: double
+    -y: double
+    -heading: double
+    -battery: double
+    -state: RobotState
+    -trail: Deque
+    +drainBattery(amount)
+    +recordTrail()
+  }
+  class SimulationStats {
+    -totalFloorCells: int
+    -initialDirtyCells: int
+    -cleanedDirtCount: int
+    -elapsedMillis: long
+    +cleanedPercentage(): double
+    +elapsedFormatted(): String
+  }
+}
+
+' ========================== CONTROLLER =========================
+package controller {
+  class SimulationManager {
+    -running: boolean
+    -dirtBlueprint: Map
+    +update(now)
+    +start(); +pause(); +reset()
+    +returnToStation()
+    +setAlgorithm(AlgorithmType)
+    +setSpeedMultiplier(double)
+    +setBattery(double)
+    +addDirt(r,c,DirtType)
+    +toggleFurniture(r,c)
+    +unreachableDirtCount(): int
+  }
+  class RobotController {
+    -strategy: CleaningStrategy
+    -speedMultiplier: double
+    +step(dt)
+    +beginCleaning()
+    +requestReturnToStation()
+    +resetToStation()
+    -cleaningStep(dt)
+    -returnStep(dt)
+    -charge(dt)
+  }
+  class PathFinder <<static>> {
+    +shortestPath(...): List <<BFS>>
+    +aStar(...): List <<A*>>
+    +reachable(...): boolean[][]
+    +pathToNearestDirt(...): List
+    +pathToNearestUncleaned(...): List
+  }
+  package algorithm {
+    interface CleaningStrategy {
+      +chooseDirection(room,r,c,dir): Direction
+      +name(): String
+      +reset()
+    }
+    class RandomStrategy
+    class SpiralStrategy
+    class WallFollowStrategy
+    class SmartStrategy
+    class StrategyFactory <<factory>> {
+      +create(AlgorithmType): CleaningStrategy
+    }
+  }
+}
+
+' ============================= UTIL ============================
+package util {
+  class SimConstants <<constants>>
+}
+
+' ============================= VIEW ===========================
+package view {
+  class Main <<JavaFX App>>
+  class RoomCanvas
+  class ControlPanel
+  class StatusPanel
+  class CustomTitleBar
+  class SpriteAssets
+  enum ToolMode { NONE; ADD_DIRT; ADD_FURNITURE }
+}
+
+' =========================== İLİŞKİLER =========================
+Room "1" *-- "rows*cols" Cell
+Cell --> CellType
+Cell --> DirtType
+Robot --> RobotState
+
+SimulationManager *-- Room
+SimulationManager *-- Robot
+SimulationManager *-- SimulationStats
+SimulationManager *-- RobotController
+SimulationManager ..> AlgorithmType
+SimulationManager ..> StrategyFactory
+
+RobotController --> Room
+RobotController --> Robot
+RobotController --> SimulationStats
+RobotController --> CleaningStrategy
+RobotController ..> PathFinder
+
+CleaningStrategy <|.. RandomStrategy
+CleaningStrategy <|.. SpiralStrategy
+CleaningStrategy <|.. WallFollowStrategy
+CleaningStrategy <|.. SmartStrategy
+StrategyFactory ..> CleaningStrategy
+SmartStrategy ..> PathFinder
+
+Main --> SimulationManager
+Main --> RoomCanvas
+Main --> ControlPanel
+Main --> StatusPanel
+ControlPanel --> SimulationManager
+ControlPanel --> ToolMode
+StatusPanel --> SimulationManager
+RoomCanvas ..> Room
+RoomCanvas ..> Robot
+RoomCanvas --> SpriteAssets
+
+@enduml
