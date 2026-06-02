@@ -2,6 +2,13 @@
 
 **Ders:** BZ 214 Visual Programming
 **Proje:** Robot Vacuum Cleaning Simulation (Java + JavaFX)
+**Grup:** 20
+
+| Üye | Öğrenci No |
+|-----|------------|
+| Erdal Gümüş | 1030510069 |
+| Melisa Şimşek | - |
+| Batuhan Pehlivanoğlu | - |
 
 > Bu proje BZ 214 Visual Programming dersi kapsamında geliştirilmiştir. Derse ve
 > katkıda bulunanlara teşekkürler.
@@ -132,10 +139,17 @@ davranışlar (gezin, kaç, temizle, batarya yönet, A\* ile dön, ulaşılamaz 
 | `DirtType` (enum) | DUST/LIQUID/STAIN; temizleme süresi, batarya maliyeti, renk |
 | `RobotState` (enum) | IDLE/CLEANING/RETURNING/CHARGING/STUCK/FINISHED |
 | `AlgorithmType` (enum) | RANDOM/SPIRAL/WALL_FOLLOW/SMART |
+| `LayoutType` (enum) | Hazır oda düzenleri: oturma odası, yatak odası, stüdyo |
+| `SimulationMode` (enum) | Tanrı modu ve gerçekçi sensör modu |
+| `FurnitureType` (enum) | Footprint ve sprite bilgisi taşıyan mobilya türleri |
+| `SurfaceType` (enum) | Zemin tipleri ve motor yükü hesapları için yüzey bilgisi |
 | `Cell` | Bir hücre: tip, kir, temizlik ilerlemesi, ziyaret durumu |
 | `Room` | Parametrik grid; engel/kir/istasyon işlemleri ve sayımlar |
 | `Robot` | Sürekli konum, yön, batarya, durum, hareket izi |
 | `SimulationStats` | Temizlenen sayısı, başlangıç kiri, geçen süre, yüzdeler |
+| `KnownMap` | Gerçekçi modda robotun öğrendiği iç harita |
+| `SensorReading` | Sensör ışını sonucu: açı, mesafe, engel bilgisi |
+| `FurniturePiece` | Çok hücreli mobilya yerleşim bilgisi |
 
 ### controller (mantık)
 | Sınıf | Sorumluluk |
@@ -143,14 +157,19 @@ davranışlar (gezin, kaç, temizle, batarya yönet, A\* ile dön, ulaşılamaz 
 | `SimulationManager` | Ana orkestratör; model'in sahibi, zaman döngüsü, tüm kullanıcı komutları |
 | `RobotController` | Hareket, çarpışma, temizleme, batarya, dönüş/şarj durum makinesi |
 | `PathFinder` | BFS (kısa yol), A\* (sezgisel), erişilebilirlik (flood-fill), en yakın kir/temizlenmemiş |
+| `LayoutFactory` | Hazır oda düzenlerini ve varsayılan kir dağılımlarını kurar |
 | `CleaningStrategy` (interface) | Gezinme stratejisi soyutlaması (+ ortak kaçış yardımcısı) |
 | `RandomStrategy/SpiralStrategy/WallFollowStrategy/SmartStrategy` | 4 algoritma |
 | `StrategyFactory` | Enum → strateji üretimi |
+| `PerceptionService/BeliefUpdater` | Gerçekçi mod sensör ışınları ve inanç haritası güncelleme |
+| `Driver`, `OmniscientDriver`, `ReactiveDriver` | Tanrı modu ve gerçekçi mod sürüş soyutlamaları |
+| `Physics/MotorModel` | Serbest açılı hareket, motor yükü, voltaj ve devir telemetrisi |
 
 ### util / view
 `SimConstants` (tüm dengeleme sabitleri). View: `Main` (uygulama girişi),
 `RoomCanvas` (çizim + sprite/fallback), `ControlPanel`, `StatusPanel`,
-`CustomTitleBar`, `SpriteAssets` (opsiyonel PNG yükleyici), `ToolMode`.
+`TelemetryPanel`, `CustomTitleBar`, `SpriteAssets` (opsiyonel PNG yükleyici),
+`ToolMode`.
 
 ---
 
@@ -221,12 +240,13 @@ flowchart TD
 (JUnit yok — ders kuralı) saf Java assertion tabanlı bir test koşucusu yazıldı:
 `src/test/java/apptest/TestRunner.java`.
 
-**48 test** geçer; kapsananlar: yön enum'u, kir süreleri, hücre temizleme, oda
+**70 test** geçer; kapsananlar: yön enum'u, kir süreleri, hücre temizleme, oda
 yapısı, BFS en-kısa-yol, A\*=BFS uzunluğu, erişilebilirlik & ulaşılamaz cep, en
 yakın kir/temizlenmemiş, stratejilerin yürünebilir yön üretmesi, Akıllı & Spiral'in
 tüm erişilebilir kiri temizleyip bitmesi (Spiral **sonsuz döngüye girmez**),
 düşük-batarya dönüşü, sıfırlamanın kiri geri yüklemesi, ulaşılamaz kirin bitişi
-engellememesi, robotun hücresine mobilya konulamaması.
+engellememesi, robotun hücresine mobilya konulamaması, sensör ışınları, inanç
+haritası, gerçekçi mod, motor modeli ve mod geçiş regresyonları.
 
 ```powershell
 mvn test-compile
@@ -322,7 +342,7 @@ sprite yüzeyi gibi görünür.
 ---
 
 ## 13. Sonuç
-Proje, ödevin tüm zorunlu gereksinimlerini ve iki bonusu karşılayan, katı MVC ve
-temiz OOP ile yazılmış, otomatik testlerle korunan bir simülasyondur. Mimarisi,
-kalan bonusların (çoklu oda, ses) ve görsel zenginleştirmelerin düşük maliyetle
-eklenmesine olanak tanır.
+Proje, ödevin tüm zorunlu gereksinimlerini ve birçok bonus özelliği karşılayan,
+katı MVC ve temiz OOP ile yazılmış, otomatik testlerle korunan bir simülasyondur.
+Mimarisi, ses efektleri gibi kalan opsiyonel cilaların düşük maliyetle eklenmesine
+olanak tanır.

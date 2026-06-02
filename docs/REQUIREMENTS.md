@@ -4,6 +4,9 @@ BZ 214 Visual Programming — Robot Vacuum Cleaning Simulation
 Bu döküman, ödev PDF'indeki **her maddeyi** kodumuzdaki karşılığına eşler.
 Durum: ✅ tam · 🟡 kısmî/planlı · ⏳ yapılacak
 
+**Grup:** 20
+**Üyeler:** Erdal Gümüş (1030510069), Melisa Şimşek, Batuhan Pehlivanoğlu
+
 ---
 
 ## 2. Fonksiyonel Gereksinimler
@@ -53,8 +56,10 @@ Durum: ✅ tam · 🟡 kısmî/planlı · ⏳ yapılacak
 |------|:-----:|-----|
 | Ulaşılamaz alan tespiti | ✅ | `PathFinder.reachable` + kırmızı X + "Ulaşılamaz" sayacı |
 | Temizlik animasyonu | ✅ | Kir solma (alpha), yumuşak hareket+dönüş, temas gölgesi, kapsama heatmap'i |
-| Çoklu oda düzeni | ⏳ | Grid parametrik (altyapı hazır); oda şablonları eklenecek (Faz 4) |
-| Ses efektleri | ⏳ | Asset listesi `docs/ASSETS.md`'de; `javafx-media` pom'da hazır (Faz 4) |
+| Çoklu oda düzeni | ✅ | `LayoutFactory` + `LayoutType` (Oturma Odası/Yatak Odası/Stüdyo) |
+| Temizlik animasyonu / görsel cila | ✅ | PNG sprite'lar, halı overlay'i, kapsama heatmap'i, robot/batarya animasyonları |
+| Gerçekçi keşif modu | ✅ | Sensör ışınları, inanç haritası, motor modeli ve gerçekçi sürüş |
+| Ses efektleri | 🟡 | `javafx-media` pom'da hazır; ses dosyaları opsiyonel cila olarak açık |
 
 ---
 
@@ -62,9 +67,10 @@ Durum: ✅ tam · 🟡 kısmî/planlı · ⏳ yapılacak
 
 | Öğe | Durum | Not |
 |-----|:-----:|-----|
-| Detaylı proje raporu | 🟡 | `docs/report/REPORT.md` taslağı oluşturuluyor |
-| Sınıf diyagramı | 🟡 | `docs/report/class-diagram.puml` + REPORT içinde Mermaid |
-| Use-case diyagramı | 🟡 | `docs/report/usecase-diagram.puml` |
+| Detaylı proje raporu | ✅ | `docs/report/REPORT.md` |
+| Sınıf diyagramı | ✅ | `docs/report/class-diagram.puml` + REPORT içinde Mermaid |
+| Use-case diyagramı | ✅ | `docs/report/usecase-diagram.puml` |
+| README / kullanım kılavuzu | ✅ | `README.md` |
 
 ---
 
@@ -74,9 +80,9 @@ Durum: ✅ tam · 🟡 kısmî/planlı · ⏳ yapılacak
 |-----|:-----:|
 | Tüm `.java` kaynaklar | ✅ |
 | JavaFX proje dosyaları (pom.xml vb.) | ✅ |
-| Görsel/asset dosyaları | ⏳ (üretiliyor) |
+| Görsel/asset dosyaları | ✅ |
 | README / kullanım kılavuzu | ✅ (`README.md`) |
-| Proje raporu | 🟡 (taslak) |
+| Proje raporu | ✅ |
 | Çalışan uygulama ekran görüntüleri | ⏳ (alınacak) |
 | Opsiyonel video/GIF | ⏳ (opsiyonel) |
 
@@ -96,4 +102,5 @@ Durum: ✅ tam · 🟡 kısmî/planlı · ⏳ yapılacak
 
 ## ⚠️ Küçük açık uçlar (opsiyonel iyileştirme)
 - `SimulationStats.cleanedPercentage()/remainingDirtyCount()` tanımlı ama panelde kapsama metriği tercih edildiğinden çağrılmıyor (ölü kod değil, alternatif gösterim; istenirse panele eklenir).
-- Floor tile geldiğinde `RoomCanvas.fillCell` kare-başına `ImagePattern` üretiyor; tek desenle global döşemeye optimize edilebilir (şu an asset yok, maliyet sıfır).
+- `RoomCanvas.fillCell` kare-başına `ImagePattern` üretiyor; mevcut grid boyutunda sorun yok,
+  daha büyük gridlerde tek desenle global döşemeye optimize edilebilir.
