@@ -14,8 +14,8 @@ thanks to the course instructor and contributors.
 | Üye | Öğrenci No |
 |-----|------------|
 | Erdal Gümüş | 1030510069 |
-| Melisa Şimşek | - |
-| Batuhan Pehlivanoğlu | - |
+| Melisa Şimşek | 1030510573 |
+| Batuhan Pehlivanoğlu | 1030510592 |
 
 ## Özellikler
 
