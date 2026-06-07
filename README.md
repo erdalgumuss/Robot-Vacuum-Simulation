@@ -7,6 +7,8 @@
 Bu proje **BZ 214 Visual Programming** dersi kapsamında geliştirilmiştir. Special
 thanks to the course instructor and contributors.
 
+**Depo (GitHub):** <https://github.com/erdalgumuss/Robot-Vacuum-Simulation>
+
 ![Genel görünüm — Tanrı Modu](docs/report/screenshots/01-overview.png)
 
 ## Grup Bilgileri
@@ -76,6 +78,8 @@ Gereksinim: **JDK 21+** (JDK 24 ile test edildi), **Maven 3.9+**. JavaFX 21 Mave
 ile otomatik gelir.
 
 ```powershell
+git clone https://github.com/erdalgumuss/Robot-Vacuum-Simulation.git
+cd Robot-Vacuum-Simulation
 mvn clean compile
 mvn javafx:run
 ```
