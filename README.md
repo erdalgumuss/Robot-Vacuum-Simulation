@@ -14,8 +14,8 @@ thanks to the course instructor and contributors.
 | Üye | Öğrenci No |
 |-----|------------|
 | Erdal Gümüş | 1030510069 |
-| Melisa Şimşek | - |
-| Batuhan Pehlivanoğlu | - |
+| Melisa Şimşek | 1030510573 |
+| Batuhan Pehlivanoğlu | 1030510592 |
 
 ## Özellikler
 
@@ -108,7 +108,7 @@ içerir. Kirli hücreye mobilya yerleştirme regresyonu da ayrıca korunur.
 
 Bonus olarak ulaşılamaz alan tespiti, çoklu oda düzeni, animasyon/heatmap ve
 premium görsel asset katmanı eklenmiştir. Ses altyapısı için `javafx-media`
-hazırdır; ses efektleri opsiyonel cila olarak bırakılmıştır.
+hazırdır; ses efektleri opsiyonel olarak bırakılmıştır.
 
 Detaylı madde eşlemesi için:
 
