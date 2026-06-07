@@ -245,7 +245,7 @@ public class ControlPanel extends VBox {
     }
 
     private VBox buildSpeed() {
-        Slider slider = new Slider(0.5, 3.0, 1.5);
+        Slider slider = new Slider(0.5, 2.0, 1.5); // üst sınır 2x
         slider.setBlockIncrement(0.5);
         Label value = new Label("1.5x");
         value.getStyleClass().add("speed-value");
