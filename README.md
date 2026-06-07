@@ -108,7 +108,7 @@ içerir. Kirli hücreye mobilya yerleştirme regresyonu da ayrıca korunur.
 
 Bonus olarak ulaşılamaz alan tespiti, çoklu oda düzeni, animasyon/heatmap ve
 premium görsel asset katmanı eklenmiştir. Ses altyapısı için `javafx-media`
-hazırdır; ses efektleri opsiyonel cila olarak bırakılmıştır.
+hazırdır; ses efektleri opsiyonel olarak bırakılmıştır.
 
 Detaylı madde eşlemesi için:
 
