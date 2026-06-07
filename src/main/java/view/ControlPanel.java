@@ -8,12 +8,12 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.Slider;
+import javafx.scene.control.TitledPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.util.StringConverter;
 import model.AlgorithmType;
 import model.DirtType;
 import model.Direction;
@@ -61,14 +61,16 @@ public class ControlPanel extends VBox {
         setSpacing(12);
         getStyleClass().add("control-panel");
 
+        // Az kullanılan (bir kez ayarlanan) bölümler varsayılan kapalı gelir;
+        // böylece panel tek ekrana sığar ve ekran görüntüsünde tümü görünür.
         getChildren().addAll(
-                section("🧰  Araçlar", buildTools()),
-                section("🛋️  Oda Düzeni", buildLayouts()),
-                section("🛰️  Mod", buildMode()),
-                section("⚙️  Temizlik Algoritması", buildAlgorithms()),
-                section("🚀  Robot Hızı", buildSpeed()),
-                section("🤖  Robot Durumu", buildRobotStatus()),
-                section("🎮  Kontroller", buildControls())
+                section("Araçlar", buildTools(), true),
+                section("Oda Düzeni", buildLayouts(), false),
+                section("Mod", buildMode(), false),
+                section("Temizlik Algoritması", buildAlgorithms(), false),
+                section("Robot Hızı", buildSpeed(), true),
+                section("Robot Durumu", buildRobotStatus(), true),
+                section("Kontroller", buildControls(), true)
         );
     }
 
@@ -85,11 +87,11 @@ public class ControlPanel extends VBox {
     public void updateRobotStatus(Robot robot) {
         int col = (int) (robot.x() / SimConstants.CELL_SIZE);
         int row = (int) (robot.y() / SimConstants.CELL_SIZE);
-        posLabel.setText("(" + col + ", " + row + ")");
+        UiUtil.setIfChanged(posLabel, "(" + col + ", " + row + ")");
         Direction d = sim.controller().currentDirection();
-        dirLabel.setText(d != null ? d.display() : "—");
-        batteryLabel.setText(String.format("%.0f%%", robot.battery()));
-        stateLabel.setText(robot.state().label());
+        UiUtil.setIfChanged(dirLabel, d != null ? d.display() : "—");
+        UiUtil.setIfChanged(batteryLabel, String.format("%.0f%%", robot.battery()));
+        UiUtil.setIfChanged(stateLabel, robot.state().label());
         if (!batterySlider.isValueChanging()) {
             batterySlider.setValue(robot.battery());
         }
@@ -97,12 +99,13 @@ public class ControlPanel extends VBox {
 
     // --- Bolum yapilari ---
 
-    private VBox section(String title, javafx.scene.Node body) {
-        Label header = new Label(title);
-        header.getStyleClass().add("section-title");
-        VBox box = new VBox(8, header, body);
-        box.getStyleClass().add("section");
-        return box;
+    /** Bir bölümü katlanabilir başlık altında sarmalar (varsayılan açık/kapalı). */
+    private TitledPane section(String title, javafx.scene.Node body, boolean expanded) {
+        TitledPane pane = new TitledPane(title, body);
+        pane.setExpanded(expanded);
+        pane.setAnimated(true);
+        pane.getStyleClass().add("section-pane");
+        return pane;
     }
 
     private VBox buildTools() {
@@ -152,10 +155,7 @@ public class ControlPanel extends VBox {
         furnitureCombo.getItems().addAll(FurnitureType.values());
         furnitureCombo.setValue(selectedFurniture);
         furnitureCombo.setMaxWidth(Double.MAX_VALUE);
-        furnitureCombo.setConverter(new StringConverter<>() {
-            @Override public String toString(FurnitureType t) { return t == null ? "" : t.label(); }
-            @Override public FurnitureType fromString(String s) { return null; }
-        });
+        furnitureCombo.setConverter(UiUtil.labelConverter(FurnitureType::label));
         furnitureCombo.valueProperty().addListener((obs, o, n) -> {
             if (n != null) {
                 selectedFurniture = n;
@@ -174,10 +174,7 @@ public class ControlPanel extends VBox {
         combo.getItems().addAll(LayoutType.values());
         combo.setValue(sim.layout());
         combo.setMaxWidth(Double.MAX_VALUE);
-        combo.setConverter(new StringConverter<>() {
-            @Override public String toString(LayoutType t) { return t == null ? "" : t.label(); }
-            @Override public LayoutType fromString(String s) { return null; }
-        });
+        combo.setConverter(UiUtil.labelConverter(LayoutType::label));
         combo.valueProperty().addListener((obs, o, n) -> {
             if (n != null) {
                 sim.loadLayout(n);
@@ -224,11 +221,17 @@ public class ControlPanel extends VBox {
         soundBox.getStyleClass().add("radio");
         soundBox.setOnAction(e -> soundOn = soundBox.isSelected());
 
-        Label hint = new Label("Gerçekçi modda robot odayı bilmez; sensörleriyle öğrenir.");
+        CheckBox odometryBox = new CheckBox("Gerçek Odometri (deneysel)");
+        odometryBox.setSelected(false);
+        odometryBox.getStyleClass().add("radio");
+        odometryBox.setOnAction(e -> sim.setUseEstimatedPose(odometryBox.isSelected()));
+
+        Label hint = new Label("Gerçekçi modda robot odayı bilmez; sensörleriyle öğrenir. "
+                + "Gerçek Odometri: konumunu da bilmez, duvarlara değdikçe düzeltir (drift).");
         hint.getStyleClass().add("hint");
         hint.setWrapText(true);
 
-        return new VBox(6, god, real, beliefBox, raysBox, soundBox, hint);
+        return new VBox(6, god, real, beliefBox, raysBox, soundBox, odometryBox, hint);
     }
 
     private void setAlgoRadiosEnabled(boolean enabled) {
@@ -299,10 +302,10 @@ public class ControlPanel extends VBox {
     }
 
     private VBox buildControls() {
-        Button start = styled("▶  Başlat", "btn-primary");
-        Button pause = styled("⏸  Duraklat", "btn-neutral");
-        Button reset = styled("⏹  Sıfırla", "btn-danger");
-        Button dock = styled("🏠  İstasyona Dön", "btn-neutral");
+        Button start = styled("Başlat", "btn-primary");
+        Button pause = styled("Duraklat", "btn-neutral");
+        Button reset = styled("Sıfırla", "btn-danger");
+        Button dock = styled("İstasyona Dön", "btn-neutral");
 
         start.setOnAction(e -> sim.start());
         pause.setOnAction(e -> sim.pause());

@@ -84,4 +84,9 @@ public class RobotController {
     public void setStrategy(CleaningStrategy strategy) {
         godDriver.setStrategy(strategy);
     }
+
+    /** Kapalı-çevrim lokalizasyon (gerçek odometri) yalnızca Gerçekçi Mod sürücüsünde. */
+    public void setUseEstimatedPose(boolean useEstimatedPose) {
+        reactiveDriver.setUseEstimatedPose(useEstimatedPose);
+    }
 }

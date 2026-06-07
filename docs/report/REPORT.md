@@ -78,42 +78,61 @@ classDiagram
         +update(now)
         +start() pause() reset()
         +returnToStation()
+        +loadLayout(t)
         +setAlgorithm(t)
+        +setMode(m)
         +setBattery(v)
         +addDirt(r,c,type)
-        +toggleFurniture(r,c)
+        +placeFurniture(t,r,c)
     }
     class RobotController {
+        <<facade>>
         +step(dt)
+        +setMode(m)
         +beginCleaning()
         +requestReturnToStation()
-        -cleaningStep(dt)
-        -returnStep(dt)
-        -charge(dt)
     }
-    class PathFinder {
-        +shortestPath() BFS
-        +aStar() Astar
-        +reachable()
-        +pathToNearestDirt()
-        +pathToNearestUncleaned()
+    class Driver {
+        <<interface>>
+        +step(dt)
+        +resetToStation()
+        +currentDirection()
+    }
+    class OmniscientDriver {
+        Tanri Modu: A* + Strategy
+    }
+    class ReactiveDriver {
+        Gercekci Mod: sensor + belief
     }
     class CleaningStrategy {
         <<interface>>
         +chooseDirection(room,r,c,dir)
     }
+    class PathFinder {
+        +shortestPath() BFS
+        +aStar() Astar
+        +reachable()
+    }
     class Room
     class Robot
-    class SimulationStats
+    class RobotMemory
+    class KnownMap
     class Cell
 
     SimulationManager *-- Room
     SimulationManager *-- Robot
     SimulationManager *-- SimulationStats
     SimulationManager *-- RobotController
-    RobotController --> CleaningStrategy
-    RobotController ..> PathFinder
+    RobotController *-- OmniscientDriver
+    RobotController *-- ReactiveDriver
+    Driver <|.. OmniscientDriver
+    Driver <|.. ReactiveDriver
+    OmniscientDriver --> CleaningStrategy
+    OmniscientDriver ..> PathFinder
+    ReactiveDriver ..> KnownMap
     Room *-- Cell
+    Robot *-- RobotMemory
+    RobotMemory *-- KnownMap
     CleaningStrategy <|.. RandomStrategy
     CleaningStrategy <|.. SpiralStrategy
     CleaningStrategy <|.. WallFollowStrategy
@@ -240,7 +259,7 @@ flowchart TD
 (JUnit yok — ders kuralı) saf Java assertion tabanlı bir test koşucusu yazıldı:
 `src/test/java/apptest/TestRunner.java`.
 
-**72 test** geçer; kapsananlar: yön enum'u, kir süreleri, hücre temizleme, oda
+**74 test** geçer; kapsananlar: yön enum'u, kir süreleri, hücre temizleme, oda
 yapısı, BFS en-kısa-yol, A\*=BFS uzunluğu, erişilebilirlik & ulaşılamaz cep, en
 yakın kir/temizlenmemiş, stratejilerin yürünebilir yön üretmesi, Akıllı & Spiral'in
 tüm erişilebilir kiri temizleyip bitmesi (Spiral **sonsuz döngüye girmez**),

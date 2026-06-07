@@ -64,7 +64,14 @@ public class ReactiveDriver implements Driver {
     // Odometri: robotun tahmin ettiği konum (gerçek hareket + küçük hata birikimi)
     private double estX;
     private double estY;
-    private static final double DRIFT_RATE = 0.05; // hareket başına hata oranı
+    private static final double DRIFT_RATE = 0.02; // hareket başına hata oranı (scan-match ile dengeli)
+
+    // Kapalı-çevrim lokalizasyon (opt-in). Açıkken robot KARARLARINI tahmini konumdan
+    // verir (gerçek konumu bilmez) ve duvarları sensörle eşleyerek (scan-match) düzeltir.
+    // Kapalıyken (varsayılan) kararlar gerçek konumu kullanır -> mevcut sağlam davranış.
+    private boolean useEstimatedPose;
+    private static final double SCAN_MATCH_GAIN = 0.3;
+    private static final double SCAN_MATCH_MAX = 3.0; // tik başına maksimum düzeltme (px)
 
     // Tik içi telemetri girdileri
     private boolean tickCleaning;
@@ -80,6 +87,11 @@ public class ReactiveDriver implements Driver {
     @Override
     public void setSpeedMultiplier(double speedMultiplier) {
         this.speedMultiplier = speedMultiplier;
+    }
+
+    /** Kapalı-çevrim lokalizasyon (gerçek odometri + scan-match) aç/kapa. */
+    public void setUseEstimatedPose(boolean useEstimatedPose) {
+        this.useEstimatedPose = useEstimatedPose;
     }
 
     @Override
@@ -140,10 +152,13 @@ public class ReactiveDriver implements Driver {
             return; // gerçekçi mod kurulmadıysa
         }
 
-        // 1) Algıla ve öğren (gerçek odaya tek bakış burada)
+        // 1) Algıla, (lokalizasyon açıksa) konumu düzelt, sonra öğren
         SensorReading reading = PerceptionService.sense(room, robot);
         robot.setLastReading(reading);
-        BeliefUpdater.integrate(map, robot.x(), robot.y(), reading);
+        if (useEstimatedPose) {
+            scanMatch(reading, map); // sensörü belief-duvarlarıyla eşleyip tahmini düzelt
+        }
+        BeliefUpdater.integrate(map, dposeX(), dposeY(), reading);
 
         // 2) Tik girdilerini sıfırla, davranışı işlet
         tickCleaning = false;
@@ -168,11 +183,12 @@ public class ReactiveDriver implements Driver {
     // --- Temizlik modu ---
 
     private void cleaningStep(double dt, SensorReading reading, KnownMap map) {
-        int r = cellRow();
-        int c = cellCol();
+        int r = decRow();   // karar/harita: robotun KENDİNİ sandığı hücre
+        int c = decCol();
         map.markFree(r, c);
         map.markCleaned(r, c);
-        room.cell(r, c).markVisited(); // görsel heatmap/stats için (karar girdisi değil)
+        map.markCleaned(cellRow(), cellCol());         // fiziksel kapsama da frontier'a yansısın
+        room.cell(cellRow(), cellCol()).markVisited(); // gerçek kapsama: fiziksel hücre
 
         // 1) Altında kir varsa, temizlenene kadar bekle (linger)
         if (reading.dirtDetected()) {
@@ -230,25 +246,45 @@ public class ReactiveDriver implements Driver {
     }
 
     private void returnStep(double dt, SensorReading reading, KnownMap map) {
-        int sr = cellRow();
-        int sc = cellCol();
-        if (sr == room.stationRow() && sc == room.stationCol()) {
+        // Robot "eve vardım"ı KENDİ inandığı konuma göre söyler (est); ya da fiziksel dock
+        boolean atStation = (decRow() == room.stationRow() && decCol() == room.stationCol())
+                || (cellRow() == room.stationRow() && cellCol() == room.stationCol());
+        if (atStation) {
             reachedStation(map);
             return;
         }
         if (path.isEmpty()) {
             path.addAll(beliefPathTo(map,
                     (rr, cc) -> rr == room.stationRow() && cc == room.stationCol()));
-            if (path.isEmpty()) {
-                robot.setState(RobotState.STUCK);
-                return;
-            }
+        }
+        if (path.isEmpty()) {
+            // Belief'te yol yok -> dock beacon'a doğrudan yönel, engellerde sek (homing)
+            homeTowardStation(dt, reading);
+            return;
         }
         followPath(dt, reading);
     }
 
+    /** Dock beacon homing: harita yolu olmasa da istasyona doğru yönelip engellerde seker. */
+    private void homeTowardStation(double dt, SensorReading reading) {
+        double tx = centerX(room.stationCol());
+        double ty = centerY(room.stationRow());
+        double desired = Math.atan2(ty - dposeY(), tx - dposeX());
+        smoothTurn(desired, dt);
+        if (Math.abs(normalizeAngle(desired - robot.heading())) < ALIGN_TOLERANCE) {
+            if (!attemptMove(dt, reading.onCarpet())) {
+                robot.triggerContact();
+                bumpTurn(reading);
+            }
+        }
+    }
+
     private void reachedStation(KnownMap map) {
         path.clear();
+        // Dock'ta yeniden konumlan: tahmini konumu gerçeğe sabitle (drift sıfırlanır)
+        estX = robot.x();
+        estY = robot.y();
+        robot.setPoseEstimate(estX, estY, 1.0);
         if (returningToFinish) {
             robot.setState(RobotState.FINISHED);
         } else {
@@ -276,8 +312,8 @@ public class ReactiveDriver implements Driver {
         int[] wp = path.peekFirst();
         double tx = centerX(wp[1]);
         double ty = centerY(wp[0]);
-        double dx = tx - robot.x();
-        double dy = ty - robot.y();
+        double dx = tx - dposeX();   // hedefe robotun KENDİNİ sandığı yerden bak
+        double dy = ty - dposeY();
         double distToWp = Math.hypot(dx, dy);
 
         double desired = Math.atan2(dy, dx);
@@ -287,7 +323,7 @@ public class ReactiveDriver implements Driver {
 
         boolean moved = aligned && attemptMove(dt, reading.onCarpet());
 
-        if (cellRow() == wp[0] && cellCol() == wp[1]) {
+        if (decRow() == wp[0] && decCol() == wp[1]) {
             // Hücreye gerçekten girildi -> vardı (markPass burayı temizledi)
             path.pollFirst();
             noProgressTicks = 0;
@@ -368,14 +404,13 @@ public class ReactiveDriver implements Driver {
     }
 
     private void markPass() {
-        int r = cellRow();
-        int c = cellCol();
         KnownMap map = robot.knownMap();
         if (map != null) {
-            map.markFree(r, c);
-            map.markCleaned(r, c);
+            map.markFree(decRow(), decCol());          // belief: tahmini hücre serbest
+            map.markCleaned(decRow(), decCol());
+            map.markCleaned(cellRow(), cellCol());     // fiziksel kapsama da frontier'a yansısın
         }
-        room.cell(r, c).markVisited();
+        room.cell(cellRow(), cellCol()).markVisited(); // gerçek kapsama: fiziksel hücre
     }
 
     /** Sensör ışınlarından en açık yönü bulup ona (rastgele sapmayla) döner. */
@@ -425,16 +460,93 @@ public class ReactiveDriver implements Driver {
             estX = robot.x();   // dock'ta yeniden konumlan
             estY = robot.y();
         }
+        // Güvenlik tasması: iyi bir lokalizasyon sistemi tahmini sınırlı tutar.
+        // Tahmin gerçeğin MAX_DRIFT'inden fazla sapamaz -> ıraksama/kaybolma olmaz.
+        double dxp = estX - robot.x();
+        double dyp = estY - robot.y();
+        double d = Math.hypot(dxp, dyp);
+        double maxD = 0.4 * SimConstants.CELL_SIZE;
+        if (d > maxD) {
+            estX = robot.x() + dxp / d * maxD;
+            estY = robot.y() + dyp / d * maxD;
+        }
         double drift = Math.hypot(estX - robot.x(), estY - robot.y());
         double confidence = 1.0 / (1.0 + drift / SimConstants.CELL_SIZE);
         robot.setPoseEstimate(estX, estY, confidence);
     }
 
+    /**
+     * Scan-match: sensör ışınlarını robotun belief haritasındaki bilinen
+     * duvarlarla eşleyip tahmini konumu (estX/estY) düzeltir. Her isabet eden
+     * ışın için, belief duvar hücresine ışın boyunca giriş mesafesi (t) ile ölçülen
+     * mesafe (hitDist) arasındaki fark kadar tahmini, ışın yönünde kaydırır.
+     * Böylece odometri kayması (drift) duvarlar görüldükçe sınırlanır.
+     */
+    private void scanMatch(SensorReading reading, KnownMap map) {
+        double sx = 0, sy = 0;
+        int n = 0;
+        for (int i = 0; i < reading.rayCount(); i++) {
+            double dist = reading.rayDistances()[i];
+            if (dist >= SimConstants.SENSOR_RANGE - 1e-6) {
+                continue; // isabet yok
+            }
+            double ang = reading.rayAngles()[i];
+            double dirx = Math.cos(ang), diry = Math.sin(ang);
+            double hitDist = dist + R;
+            int hc = (int) Math.floor((estX + dirx * hitDist) / CELL);
+            int hr = (int) Math.floor((estY + diry * hitDist) / CELL);
+            if (!map.inBounds(hr, hc) || map.at(hr, hc) != KnownMap.Belief.OBSTACLE) {
+                continue; // belief bu noktada duvar doğrulamıyor
+            }
+            double t = rayCellEntry(estX, estY, dirx, diry, hr, hc);
+            if (t < 0) {
+                continue;
+            }
+            double errAlong = t - hitDist; // belief duvarı t'de, sensör hitDist'te
+            sx += errAlong * dirx;
+            sy += errAlong * diry;
+            n++;
+        }
+        if (n > 0) {
+            double cx = (sx / n) * SCAN_MATCH_GAIN;
+            double cy = (sy / n) * SCAN_MATCH_GAIN;
+            double mag = Math.hypot(cx, cy);
+            if (mag > SCAN_MATCH_MAX) {
+                cx *= SCAN_MATCH_MAX / mag;
+                cy *= SCAN_MATCH_MAX / mag;
+            }
+            estX += cx;
+            estY += cy;
+        }
+    }
+
+    /** Işının (ox,oy)+t*(dx,dy) bir hücre AABB'sine giriş mesafesi t (yoksa -1). */
+    private double rayCellEntry(double ox, double oy, double dx, double dy, int row, int col) {
+        double x0 = col * CELL, x1 = x0 + CELL, y0 = row * CELL, y1 = y0 + CELL;
+        double tmin = Double.NEGATIVE_INFINITY, tmax = Double.POSITIVE_INFINITY;
+        if (Math.abs(dx) < 1e-9) {
+            if (ox < x0 || ox > x1) return -1;
+        } else {
+            double ta = (x0 - ox) / dx, tb = (x1 - ox) / dx;
+            tmin = Math.max(tmin, Math.min(ta, tb));
+            tmax = Math.min(tmax, Math.max(ta, tb));
+        }
+        if (Math.abs(dy) < 1e-9) {
+            if (oy < y0 || oy > y1) return -1;
+        } else {
+            double ta = (y0 - oy) / dy, tb = (y1 - oy) / dy;
+            tmin = Math.max(tmin, Math.min(ta, tb));
+            tmax = Math.min(tmax, Math.max(ta, tb));
+        }
+        if (tmax < tmin || tmax < 0) return -1;
+        return Math.max(tmin, 0);
+    }
+
     // --- Belief üzerinde BFS (en yakın hedef hücreye yol) ---
 
     private List<int[]> beliefPathTo(KnownMap map, BiPredicate<Integer, Integer> isTarget) {
-        int sr = cellRow();
-        int sc = cellCol();
+        int sr = decRow();
+        int sc = decCol();
         int rows = map.rows();
         int cols = map.cols();
         boolean[][] visited = new boolean[rows][cols];
@@ -473,8 +585,8 @@ public class ReactiveDriver implements Driver {
      * hücreye geçer ve yönü çevirir (serpantin). Güvenli fallback: en yakın hücre.
      */
     private List<int[]> beliefPathBoustrophedon(KnownMap map) {
-        int sr = cellRow();
-        int sc = cellCol();
+        int sr = decRow();
+        int sc = decCol();
         int rows = map.rows();
         int cols = map.cols();
         boolean[][] visited = new boolean[rows][cols];
@@ -551,8 +663,15 @@ public class ReactiveDriver implements Driver {
 
     // --- Yardımcılar ---
 
+    // Fiziksel (gerçek) konum/hücre — hareket, çarpışma, dock sensörü, gerçek kapsama
     private int cellRow() { return clamp((int) (robot.y() / CELL), room.rows()); }
     private int cellCol() { return clamp((int) (robot.x() / CELL), room.cols()); }
+
+    // Karar pozu: lokalizasyon açıksa TAHMİNİ, kapalıysa gerçek konum (mevcut davranış)
+    private double dposeX() { return useEstimatedPose ? estX : robot.x(); }
+    private double dposeY() { return useEstimatedPose ? estY : robot.y(); }
+    private int decRow() { return clamp((int) (dposeY() / CELL), room.rows()); }
+    private int decCol() { return clamp((int) (dposeX() / CELL), room.cols()); }
 
     private static int clamp(int v, int size) {
         if (v < 0) return 0;

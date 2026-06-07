@@ -51,7 +51,7 @@ public class TelemetryPanel extends VBox {
         minimap.setHeight(mmWidth * rows / cols);
 
         getChildren().addAll(
-                title("🛰️  Robot Telemetri"),
+                title("Robot Telemetri"),
                 modeLabel,
                 section("İç Harita (öğrenilen)", minimap),
                 section("Sensör Radarı", radar),
@@ -108,7 +108,7 @@ public class TelemetryPanel extends VBox {
 
     /** Her karede Main tarafından çağrılır. */
     public void update(SimulationManager sim) {
-        modeLabel.setText(sim.mode().label());
+        UiUtil.setIfChanged(modeLabel, sim.mode().label());
         Robot robot = sim.robot();
         boolean realistic = sim.mode() == SimulationMode.REALISTIC && robot.knownMap() != null;
 
@@ -119,24 +119,27 @@ public class TelemetryPanel extends VBox {
         double load = robot.motorLoad();
         voltageBar.setProgress(v / SimConstants.MOTOR_VOLTAGE_NOMINAL);
         loadBar.setProgress(load);
-        voltageLabel.setText(String.format("%.1f V", v));
-        loadLabel.setText(String.format("%%%.0f", load * 100));
-        rpmLabel.setText(String.format("%.0f RPM", robot.wheelRpm()));
-        poseConfLabel.setText(realistic ? String.format("%%%.0f", robot.poseConfidence() * 100) : "—");
+        UiUtil.setIfChanged(voltageLabel, String.format("%.1f V", v));
+        UiUtil.setIfChanged(loadLabel, String.format("%%%.0f", load * 100));
+        UiUtil.setIfChanged(rpmLabel, String.format("%.0f RPM", robot.wheelRpm()));
+        UiUtil.setIfChanged(poseConfLabel,
+                realistic ? String.format("%%%.0f", robot.poseConfidence() * 100) : "—");
 
         SensorReading rd = robot.lastReading();
         boolean dirt = realistic && rd != null && rd.dirtDetected();
         boolean carpet = realistic && rd != null && rd.onCarpet();
-        dirtChip.setText(dirt ? "Kir Algılandı" : "Kir Yok");
-        carpetChip.setText(carpet ? "Halı" : "Sert Zemin");
+        UiUtil.setIfChanged(dirtChip, dirt ? "Kir Algılandı" : "Kir Yok");
+        UiUtil.setIfChanged(carpetChip, carpet ? "Halı" : "Sert Zemin");
         toggleChip(dirtChip, dirt);
         toggleChip(carpetChip, carpet);
     }
 
     private void toggleChip(Label chip, boolean on) {
-        chip.getStyleClass().remove("chip-on");
-        if (on) {
+        boolean has = chip.getStyleClass().contains("chip-on");
+        if (on && !has) {
             chip.getStyleClass().add("chip-on");
+        } else if (!on && has) {
+            chip.getStyleClass().remove("chip-on");
         }
     }
 

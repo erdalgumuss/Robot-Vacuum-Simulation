@@ -4,39 +4,15 @@ title Robot Süpürge Simülasyonu - Sınıf Diyagramı (MVC)
 skinparam packageStyle rectangle
 skinparam classAttributeIconSize 0
 skinparam shadowing false
+skinparam linetype ortho
 hide empty members
 
-' ============================ MODEL ============================
+' =====================================================================
+'  MODEL  — saf veri & durum (JavaFX'e SIFIR bağımlılık)
+' =====================================================================
 package model {
-  enum Direction {
-    NORTH; EAST; SOUTH; WEST
-    +dRow(): int
-    +dCol(): int
-    +angleRadians(): double
-    +turnLeft(): Direction
-    +turnRight(): Direction
-    +opposite(): Direction
-    +display(): String
-  }
-  enum CellType {
-    FLOOR; WALL; FURNITURE; STATION
-    +isObstacle(): boolean
-    +isCleanable(): boolean
-  }
-  enum DirtType {
-    DUST; LIQUID; STAIN
-    +cleaningSeconds(): double
-    +batteryCost(): double
-    +colorHex(): String
-  }
-  enum RobotState {
-    IDLE; CLEANING; RETURNING
-    CHARGING; STUCK; FINISHED
-  }
-  enum AlgorithmType {
-    RANDOM; SPIRAL; WALL_FOLLOW; SMART
-  }
 
+  ' --------- Çekirdek dünya modeli ---------
   class Cell {
     -row: int
     -col: int
@@ -44,10 +20,13 @@ package model {
     -dirt: DirtType
     -cleaningProgress: double
     -visited: boolean
+    -visitCount: int
+    -surface: SurfaceType
     +applyCleaning(amount): boolean
     +setDirt(DirtType)
     +markVisited()
     +isWalkable(): boolean
+    +isObstacle(): boolean
   }
   class Room {
     -rows: int
@@ -55,10 +34,13 @@ package model {
     -grid: Cell[][]
     -stationRow: int
     -stationCol: int
+    -furniture: List<FurniturePiece>
     +cell(r,c): Cell
     +isWalkable(r,c): boolean
     +addDirt(r,c,DirtType)
-    +setFurniture(r,c)
+    +placeFurniture(type,r,c): boolean
+    +removeFurnitureAt(r,c): boolean
+    +pieceAt(r,c): FurniturePiece
     +totalFloorCells(): int
     +dirtyCellCount(): int
     +visitedFloorCells(): int
@@ -69,104 +51,300 @@ package model {
     -heading: double
     -battery: double
     -state: RobotState
-    -trail: Deque
+    -trail: Deque<double[]>
+    -memory: RobotMemory
+    -telemetry: RobotTelemetry
     +drainBattery(amount)
     +recordTrail()
+    +knownMap(): KnownMap
+    +setMotorTelemetry(load,volt,rpm)
+    +triggerContact()
   }
   class SimulationStats {
     -totalFloorCells: int
     -initialDirtyCells: int
     -cleanedDirtCount: int
     -elapsedMillis: long
+    +incrementCleaned()
     +cleanedPercentage(): double
     +elapsedFormatted(): String
   }
+  class FurniturePiece <<record>> {
+    +type: FurnitureType
+    +row: int
+    +col: int
+    +covers(r,c): boolean
+  }
+
+  ' --------- Gerçekçi mod: bellek + telemetri + sensör ---------
+  class RobotMemory {
+    -knownMap: KnownMap
+    -lastReading: SensorReading
+    +clear()
+  }
+  class RobotTelemetry {
+    -motorLoad: double
+    -motorVoltage: double
+    -wheelRpm: double
+    -estimatedX: double
+    -estimatedY: double
+    -poseConfidence: double
+    +setMotor(load,volt,rpm)
+    +setPoseEstimate(x,y,conf)
+    +reset()
+  }
+  class KnownMap {
+    -rows: int
+    -cols: int
+    -belief: Belief[][]
+    -cleaned: boolean[][]
+    -dirtSeen: boolean[][]
+    +at(r,c): Belief
+    +markFree(r,c)
+    +markObstacle(r,c)
+    +markCleaned(r,c)
+    +isCleaned(r,c): boolean
+  }
+  enum Belief {
+    UNKNOWN
+    FREE
+    OBSTACLE
+  }
+  class SensorReading <<record>> {
+    +rayAngles: double[]
+    +rayDistances: double[]
+    +dirtDetected: boolean
+    +onCarpet: boolean
+    +rayCount(): int
+    +anyBump(): boolean
+    +{static} empty(): SensorReading
+  }
+
+  ' --------- Enum'lar (davranış taşıyan) ---------
+  enum Direction {
+    NORTH; EAST; SOUTH; WEST
+    +dRow(): int
+    +dCol(): int
+    +angleRadians(): double
+    +turnLeft(): Direction
+    +turnRight(): Direction
+    +opposite(): Direction
+  }
+  enum DirtType {
+    DUST; LIQUID; STAIN
+    +cleaningSeconds(): double
+    +batteryCost(): double
+    +colorHex(): String
+  }
+  enum CellType {
+    FLOOR; WALL; FURNITURE; STATION
+    +isObstacle(): boolean
+    +isCleanable(): boolean
+  }
+  enum FurnitureType {
+    SOFA; COFFEE_TABLE; DINING_TABLE
+    BED; ARMCHAIR; PLANT
+    +rows(): int
+    +cols(): int
+    +asset(): String
+  }
+  enum RobotState {
+    IDLE; CLEANING; RETURNING
+    CHARGING; STUCK; FINISHED
+  }
+  enum AlgorithmType { RANDOM; SPIRAL; WALL_FOLLOW; SMART }
+  enum LayoutType { LIVING_ROOM; BEDROOM; STUDIO }
+  enum SimulationMode { GOD; REALISTIC }
+  enum SurfaceType { HARD_FLOOR; CARPET }
 }
 
-' ========================== CONTROLLER =========================
+' =====================================================================
+'  CONTROLLER  — mantık (JavaFX'e SIFIR bağımlılık)
+' =====================================================================
 package controller {
+
   class SimulationManager {
     -running: boolean
-    -dirtBlueprint: Map
+    -dirtBlueprint: Map<Integer,DirtType>
+    -reachableFromStation: boolean[][]
     +update(now)
     +start(); +pause(); +reset()
     +returnToStation()
+    +loadLayout(LayoutType)
     +setAlgorithm(AlgorithmType)
-    +setSpeedMultiplier(double)
+    +setMode(SimulationMode)
     +setBattery(double)
     +addDirt(r,c,DirtType)
-    +toggleFurniture(r,c)
+    +placeFurniture(type,r,c)
     +unreachableDirtCount(): int
   }
-  class RobotController {
-    -strategy: CleaningStrategy
-    -speedMultiplier: double
+  class RobotController <<façade>> {
+    -mode: SimulationMode
+    -active: Driver
     +step(dt)
+    +setMode(SimulationMode)
     +beginCleaning()
     +requestReturnToStation()
-    +resetToStation()
-    -cleaningStep(dt)
-    -returnStep(dt)
-    -charge(dt)
+    +setStrategy(CleaningStrategy)
+    +setUseEstimatedPose(boolean)
   }
   class PathFinder <<static>> {
-    +shortestPath(...): List <<BFS>>
-    +aStar(...): List <<A*>>
-    +reachable(...): boolean[][]
-    +pathToNearestDirt(...): List
-    +pathToNearestUncleaned(...): List
+    +{static} shortestPath(...): List <<BFS>>
+    +{static} aStar(...): List <<A*>>
+    +{static} reachable(...): boolean[][]
+    +{static} pathToNearestDirt(...): List
+    +{static} pathToNearestUncleaned(...): List
   }
+  class LayoutFactory <<factory>> {
+    +{static} apply(Room,LayoutType): List<DirtSpec>
+  }
+  class DirtSpec <<record>> {
+    +row: int
+    +col: int
+    +type: DirtType
+  }
+
+  ' --------- Sürüş (Driver — Strategy + Façade) ---------
+  package drive {
+    interface Driver {
+      +step(dt)
+      +resetToStation()
+      +beginCleaning()
+      +requestReturnToStation()
+      +setSpeedMultiplier(double)
+      +currentDirection(): Direction
+    }
+    class OmniscientDriver {
+      -strategy: CleaningStrategy
+      -returnPath: Deque<int[]>
+      -cleaningStep(dt)
+      -returnStep(dt)
+      -charge(dt)
+      -moveTowardTarget(dt)
+    }
+    class ReactiveDriver {
+      -path: Deque<int[]>
+      -estX: double
+      -estY: double
+      -useEstimatedPose: boolean
+      -cleaningStep(...)
+      -beliefPathBoustrophedon(map)
+      -scanMatch(reading,map)
+      -attemptMove(...)
+    }
+    class MotorModel <<static>> {
+      +{static} load(...): double
+      +{static} voltage(load,batt): double
+      +{static} rpm(speed): double
+    }
+    class Physics <<static>> {
+      +{static} overlapsObstacle(room,x,y,r): boolean
+    }
+  }
+
+  ' --------- Algılama (sensör + inanç haritası) ---------
+  package perception {
+    class PerceptionService <<static>> {
+      +{static} sense(Room,Robot): SensorReading
+    }
+    class BeliefUpdater <<static>> {
+      +{static} integrate(map,dx,dy,reading)
+    }
+  }
+
+  ' --------- Gezinme stratejileri (Strategy) ---------
   package algorithm {
     interface CleaningStrategy {
-      +chooseDirection(room,r,c,dir): Direction
       +name(): String
+      +chooseDirection(room,r,c,dir): Direction
       +reset()
+      ..ortak yardımcılar..
+      +{static} walkableDirections(...): List
+      +{static} escapeToNearestUncleaned(...): Direction
     }
     class RandomStrategy
     class SpiralStrategy
     class WallFollowStrategy
     class SmartStrategy
     class StrategyFactory <<factory>> {
-      +create(AlgorithmType): CleaningStrategy
+      +{static} create(AlgorithmType): CleaningStrategy
     }
   }
 }
 
-' ============================= UTIL ============================
+' =====================================================================
+'  UTIL
+' =====================================================================
 package util {
   class SimConstants <<constants>>
 }
 
-' ============================= VIEW ===========================
+' =====================================================================
+'  VIEW  — JavaFX arayüz & çizim (model/controller'a salt-okunur erişir)
+' =====================================================================
 package view {
   class Main <<JavaFX App>>
-  class RoomCanvas
-  class ControlPanel
-  class StatusPanel
-  class CustomTitleBar
+  class RoomCanvas <<Canvas>>
+  class ControlPanel <<VBox>>
+  class StatusPanel <<HBox>>
+  class TelemetryPanel <<VBox>>
+  class CustomTitleBar <<HBox>>
   class SpriteAssets
+  class SoundManager
   enum ToolMode { NONE; ADD_DIRT; ADD_FURNITURE }
 }
 
-' =========================== İLİŞKİLER =========================
+' =====================================================================
+'  İLİŞKİLER
+' =====================================================================
+
+' --- model iç ---
 Room "1" *-- "rows*cols" Cell
+Room "1" *-- "0..*" FurniturePiece
+FurniturePiece --> FurnitureType
 Cell --> CellType
 Cell --> DirtType
+Cell --> SurfaceType
+Robot *-- RobotMemory
+Robot *-- RobotTelemetry
 Robot --> RobotState
+RobotMemory *-- KnownMap
+RobotMemory *-- SensorReading
+KnownMap +-- Belief
 
+' --- manager (kompozisyon) ---
 SimulationManager *-- Room
 SimulationManager *-- Robot
 SimulationManager *-- SimulationStats
 SimulationManager *-- RobotController
-SimulationManager ..> AlgorithmType
 SimulationManager ..> StrategyFactory
+SimulationManager ..> LayoutFactory
+LayoutFactory +-- DirtSpec
 
-RobotController --> Room
-RobotController --> Robot
-RobotController --> SimulationStats
-RobotController --> CleaningStrategy
-RobotController ..> PathFinder
+' --- RobotController: iki sürücüyü tutar, aktif olana delege eder ---
+RobotController *-- OmniscientDriver
+RobotController *-- ReactiveDriver
+RobotController o--> Driver : active
+Driver <|.. OmniscientDriver
+Driver <|.. ReactiveDriver
 
+' --- OmniscientDriver (Tanrı modu) ---
+OmniscientDriver --> Room
+OmniscientDriver --> Robot
+OmniscientDriver --> CleaningStrategy
+OmniscientDriver ..> PathFinder
+
+' --- ReactiveDriver (Gerçekçi mod) ---
+ReactiveDriver --> Room
+ReactiveDriver --> Robot
+ReactiveDriver ..> PerceptionService
+ReactiveDriver ..> BeliefUpdater
+ReactiveDriver ..> MotorModel
+ReactiveDriver ..> Physics
+PerceptionService ..> SensorReading
+BeliefUpdater ..> KnownMap
+
+' --- Strategy ailesi ---
 CleaningStrategy <|.. RandomStrategy
 CleaningStrategy <|.. SpiralStrategy
 CleaningStrategy <|.. WallFollowStrategy
@@ -174,15 +352,22 @@ CleaningStrategy <|.. SmartStrategy
 StrategyFactory ..> CleaningStrategy
 SmartStrategy ..> PathFinder
 
-Main --> SimulationManager
-Main --> RoomCanvas
-Main --> ControlPanel
-Main --> StatusPanel
+' --- view (kompozisyon + salt-okunur erişim) ---
+Main *-- SimulationManager
+Main *-- RoomCanvas
+Main *-- ControlPanel
+Main *-- StatusPanel
+Main *-- TelemetryPanel
+Main *-- SoundManager
 ControlPanel --> SimulationManager
 ControlPanel --> ToolMode
-StatusPanel --> SimulationManager
+StatusPanel ..> SimulationManager
+TelemetryPanel ..> SimulationManager
+TelemetryPanel ..> Robot
 RoomCanvas ..> Room
 RoomCanvas ..> Robot
+RoomCanvas ..> KnownMap
 RoomCanvas --> SpriteAssets
+SoundManager ..> SimulationManager
 
 @enduml

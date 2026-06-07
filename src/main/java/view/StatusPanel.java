@@ -51,13 +51,13 @@ public class StatusPanel extends HBox {
         int remaining = Math.max(0, total - visited);
         double coverage = total == 0 ? 0 : 100.0 * visited / total;
 
-        totalArea.setText(total + " m²");
-        cleanedArea.setText(String.format("%d m² (%.0f%%)", visited, coverage));
-        remainingArea.setText(remaining + " m²");
-        dirtRemaining.setText(String.valueOf(room.dirtyCellCount()));
-        unreachable.setText(String.valueOf(sim.unreachableDirtCount()));
-        elapsed.setText(stats.elapsedFormatted());
-        battery.setText(String.format("%.0f%%", sim.robot().battery()));
+        UiUtil.setIfChanged(totalArea, total + " m²");
+        UiUtil.setIfChanged(cleanedArea, String.format("%d m² (%.0f%%)", visited, coverage));
+        UiUtil.setIfChanged(remainingArea, remaining + " m²");
+        UiUtil.setIfChanged(dirtRemaining, String.valueOf(room.dirtyCellCount()));
+        UiUtil.setIfChanged(unreachable, String.valueOf(sim.unreachableDirtCount()));
+        UiUtil.setIfChanged(elapsed, stats.elapsedFormatted());
+        UiUtil.setIfChanged(battery, String.format("%.0f%%", sim.robot().battery()));
     }
 
     private VBox metric(String title, Label valueLabel) {

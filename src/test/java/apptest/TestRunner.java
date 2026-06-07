@@ -67,6 +67,7 @@ public class TestRunner {
         testBeliefOnlyFromRays();
         testRealisticNoCollision();
         testRealisticCleansAndFinishes();
+        testRealisticOdometryTerminates();
         testMotorModel();
         testModeSwitchRegression();
 
@@ -432,6 +433,32 @@ public class TestRunner {
         }
         check("gerçekçi mod tamamlanır (FINISHED)", finished);
         check("tüm erişilebilir kir temizlendi", sim.room().dirtyCellCount() == 0);
+    }
+
+    private static void testRealisticOdometryTerminates() {
+        section("Gerçek odometri (scan-match) ile de tamamlanır");
+        SimulationManager sim = new SimulationManager(9, 12);
+        sim.addDirt(2, 3, DirtType.DUST);
+        sim.addDirt(5, 8, DirtType.LIQUID);
+        sim.addDirt(7, 5, DirtType.DUST);
+        sim.setMode(SimulationMode.REALISTIC);
+        sim.setUseEstimatedPose(true);   // robot konumunu bilmez; odometri + scan-match
+        sim.start();
+
+        boolean finished = false;
+        double maxDrift = 0;
+        for (int i = 0; i < 400_000; i++) {
+            sim.controller().step(0.05);
+            maxDrift = Math.max(maxDrift, Math.hypot(
+                    sim.robot().estimatedX() - sim.robot().x(),
+                    sim.robot().estimatedY() - sim.robot().y()));
+            if (sim.robot().state() == RobotState.FINISHED) {
+                finished = true;
+                break;
+            }
+        }
+        check("kapalı-çevrim lokalizasyonla tamamlanır (drift+scan-match+dock homing)", finished);
+        check("tahmin sınırlı kalır (robot kaybolmaz)", maxDrift < CELL);
     }
 
     private static void testMotorModel() {

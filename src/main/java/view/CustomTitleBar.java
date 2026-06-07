@@ -22,7 +22,7 @@ public class CustomTitleBar extends HBox {
         getStyleClass().add("title-bar");
         setSpacing(8);
 
-        Label title = new Label("🤖  Robot Süpürge Simülasyonu");
+        Label title = new Label("Robot Süpürge Simülasyonu");
         title.getStyleClass().add("title-bar-label");
 
         Region spacer = new Region();

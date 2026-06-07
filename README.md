@@ -83,7 +83,7 @@ java -cp "target/classes;target/test-classes" apptest.TestRunner
 Son doğrulama sonucu:
 
 ```text
-72 geçti, 0 kaldı
+74 geçti, 0 kaldı
 ```
 
 Test kapsamı; BFS/A*, erişilebilirlik, kir temizleme süreleri, batarya yönetimi,

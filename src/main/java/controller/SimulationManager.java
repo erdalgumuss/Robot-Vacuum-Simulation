@@ -199,6 +199,11 @@ public class SimulationManager {
         return controller.mode();
     }
 
+    /** Gerçekçi modda kapalı-çevrim lokalizasyonu (gerçek odometri + scan-match) aç/kapa. */
+    public void setUseEstimatedPose(boolean useEstimatedPose) {
+        controller.setUseEstimatedPose(useEstimatedPose);
+    }
+
     public void setSpeedMultiplier(double multiplier) {
         controller.setSpeedMultiplier(multiplier);
     }
