@@ -7,6 +7,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import model.Room;
+import model.SimulationMode;
 import model.SimulationStats;
 import util.SimConstants;
 
@@ -25,16 +26,20 @@ public class StatusPanel extends HBox {
     private final Label unreachable = new Label("0");
     private final Label battery = new Label("100%");
 
+    // "Kalan Alan" metriği: gerçekçi modda gizlenir (robot toplam alanı bilmez).
+    private final VBox remainingAreaBox;
+
     public StatusPanel() {
         setPrefHeight(SimConstants.STATUS_BAR_HEIGHT);
         setSpacing(10);
         setAlignment(Pos.CENTER_LEFT);
         getStyleClass().add("status-bar");
 
+        remainingAreaBox = metric("Kalan Alan", remainingArea);
         getChildren().addAll(
                 metric("Toplam Alan", totalArea),
                 metric("Temizlenen Alan", cleanedArea),
-                metric("Kalan Alan", remainingArea),
+                remainingAreaBox,
                 metric("Kalan Kir", dirtRemaining),
                 metric("Ulaşılamaz", unreachable),
                 metric("Geçen Süre", elapsed),
@@ -50,6 +55,11 @@ public class StatusPanel extends HBox {
         int visited = room.visitedFloorCells();
         int remaining = Math.max(0, total - visited);
         double coverage = total == 0 ? 0 : 100.0 * visited / total;
+
+        // Gerçekçi modda robot toplam alanı bilmediği için "Kalan Alan" gösterilmez.
+        boolean showRemaining = sim.mode() != SimulationMode.REALISTIC;
+        remainingAreaBox.setVisible(showRemaining);
+        remainingAreaBox.setManaged(showRemaining);
 
         UiUtil.setIfChanged(totalArea, total + " m²");
         UiUtil.setIfChanged(cleanedArea, String.format("%d m² (%.0f%%)", visited, coverage));

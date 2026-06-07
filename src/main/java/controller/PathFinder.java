@@ -1,6 +1,6 @@
 package controller;
 
-import model.Room;
+import model.NavGrid;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -13,6 +13,10 @@ import java.util.Queue;
 /**
  * Grid uzerinde en kisa yol bulma.
  * <p>
+ * {@link NavGrid} uzerinde calisir; bu sayede ayni yol bulma hem gercek oda
+ * ({@link model.Room}, Tanri Modu) hem de robotun ic haritasi
+ * ({@link model.KnownMap}, Gercekci Mod) icin kullanilabilir.
+ * <p>
  * Sarj istasyonuna donus icin <b>BFS</b> kullanilir: agirliksiz grid'de BFS,
  * adim sayisi olarak en kisa yolu garanti eder. (A* da eklenebilir; engelsiz
  * uniform maliyetli bu problemde BFS optimal ve sadedir.)
@@ -24,14 +28,14 @@ public final class PathFinder {
 
     private PathFinder() { }
 
-    public static List<int[]> shortestPath(Room room, int startRow, int startCol,
+    public static List<int[]> shortestPath(NavGrid grid, int startRow, int startCol,
                                            int goalRow, int goalCol) {
-        if (!room.isWalkable(startRow, startCol) || !room.isWalkable(goalRow, goalCol)) {
+        if (!grid.isWalkable(startRow, startCol) || !grid.isWalkable(goalRow, goalCol)) {
             return Collections.emptyList();
         }
 
-        int rows = room.rows();
-        int cols = room.cols();
+        int rows = grid.rows();
+        int cols = grid.cols();
         boolean[][] visited = new boolean[rows][cols];
         int[][] parentRow = new int[rows][cols];
         int[][] parentCol = new int[rows][cols];
@@ -51,7 +55,7 @@ public final class PathFinder {
             for (int[] m : moves) {
                 int nr = r + m[0];
                 int nc = c + m[1];
-                if (room.isWalkable(nr, nc) && !visited[nr][nc]) {
+                if (grid.isWalkable(nr, nc) && !visited[nr][nc]) {
                     visited[nr][nc] = true;
                     parentRow[nr][nc] = r;
                     parentCol[nr][nc] = c;
@@ -84,13 +88,13 @@ public final class PathFinder {
      * az hucre acarak ulasir. Rapordaki algoritma karsilastirmasi icin BFS'in
      * yaninda sunulur.
      */
-    public static List<int[]> aStar(Room room, int startRow, int startCol,
+    public static List<int[]> aStar(NavGrid grid, int startRow, int startCol,
                                     int goalRow, int goalCol) {
-        if (!room.isWalkable(startRow, startCol) || !room.isWalkable(goalRow, goalCol)) {
+        if (!grid.isWalkable(startRow, startCol) || !grid.isWalkable(goalRow, goalCol)) {
             return Collections.emptyList();
         }
-        int rows = room.rows();
-        int cols = room.cols();
+        int rows = grid.rows();
+        int cols = grid.cols();
         int[][] gScore = new int[rows][cols];
         boolean[][] closed = new boolean[rows][cols];
         int[][] parentRow = new int[rows][cols];
@@ -117,7 +121,7 @@ public final class PathFinder {
             for (int[] m : moves) {
                 int nr = r + m[0];
                 int nc = c + m[1];
-                if (!room.isWalkable(nr, nc) || closed[nr][nc]) {
+                if (!grid.isWalkable(nr, nc) || closed[nr][nc]) {
                     continue;
                 }
                 int tentative = gScore[r][c] + 1;
@@ -140,9 +144,9 @@ public final class PathFinder {
      * Baslangic hucresinden yuruyerek erisilebilen tum hucreleri isaretler
      * (flood-fill). "Ulasilamaz alan tespiti" bonusunun temelidir.
      */
-    public static boolean[][] reachable(Room room, int startRow, int startCol) {
-        boolean[][] seen = new boolean[room.rows()][room.cols()];
-        if (!room.isWalkable(startRow, startCol)) {
+    public static boolean[][] reachable(NavGrid grid, int startRow, int startCol) {
+        boolean[][] seen = new boolean[grid.rows()][grid.cols()];
+        if (!grid.isWalkable(startRow, startCol)) {
             return seen;
         }
         Queue<int[]> queue = new ArrayDeque<>();
@@ -154,7 +158,7 @@ public final class PathFinder {
             for (int[] m : moves) {
                 int nr = cur[0] + m[0];
                 int nc = cur[1] + m[1];
-                if (room.isWalkable(nr, nc) && !seen[nr][nc]) {
+                if (grid.isWalkable(nr, nc) && !seen[nr][nc]) {
                     seen[nr][nc] = true;
                     queue.add(new int[]{nr, nc});
                 }
@@ -167,12 +171,12 @@ public final class PathFinder {
      * Baslangictan en yakin <b>kirli</b> hucreye giden yol (BFS, en az adim).
      * "Akilli" temizlik stratejisi bunu kullanir. Erisilebilir kir yoksa bos doner.
      */
-    public static List<int[]> pathToNearestDirt(Room room, int startRow, int startCol) {
-        if (!room.isWalkable(startRow, startCol)) {
+    public static List<int[]> pathToNearestDirt(NavGrid grid, int startRow, int startCol) {
+        if (!grid.isWalkable(startRow, startCol)) {
             return Collections.emptyList();
         }
-        int rows = room.rows();
-        int cols = room.cols();
+        int rows = grid.rows();
+        int cols = grid.cols();
         boolean[][] visited = new boolean[rows][cols];
         int[][] parentRow = new int[rows][cols];
         int[][] parentCol = new int[rows][cols];
@@ -183,13 +187,13 @@ public final class PathFinder {
         while (!queue.isEmpty()) {
             int[] cur = queue.poll();
             int r = cur[0], c = cur[1];
-            if (room.cell(r, c).isDirty() && !(r == startRow && c == startCol)) {
+            if (grid.isDirty(r, c) && !(r == startRow && c == startCol)) {
                 return reconstruct(parentRow, parentCol, startRow, startCol, r, c);
             }
             for (int[] m : moves) {
                 int nr = r + m[0];
                 int nc = c + m[1];
-                if (room.isWalkable(nr, nc) && !visited[nr][nc]) {
+                if (grid.isWalkable(nr, nc) && !visited[nr][nc]) {
                     visited[nr][nc] = true;
                     parentRow[nr][nc] = r;
                     parentCol[nr][nc] = c;
@@ -208,12 +212,12 @@ public final class PathFinder {
      * (tum komsular ziyaretli) bu "kacis" yolu ile en yakin yeni alana giderek
      * sonsuz donguden cikar ve tam kapsamayi/bitisi garanti eder.
      */
-    public static List<int[]> pathToNearestUncleaned(Room room, int startRow, int startCol) {
-        if (!room.isWalkable(startRow, startCol)) {
+    public static List<int[]> pathToNearestUncleaned(NavGrid grid, int startRow, int startCol) {
+        if (!grid.isWalkable(startRow, startCol)) {
             return Collections.emptyList();
         }
-        int rows = room.rows();
-        int cols = room.cols();
+        int rows = grid.rows();
+        int cols = grid.cols();
         boolean[][] visited = new boolean[rows][cols];
         int[][] parentRow = new int[rows][cols];
         int[][] parentCol = new int[rows][cols];
@@ -224,14 +228,14 @@ public final class PathFinder {
         while (!queue.isEmpty()) {
             int[] cur = queue.poll();
             int r = cur[0], c = cur[1];
-            boolean isTarget = room.cell(r, c).isDirty() || !room.cell(r, c).isVisited();
+            boolean isTarget = grid.isDirty(r, c) || !grid.isVisited(r, c);
             if (isTarget && !(r == startRow && c == startCol)) {
                 return reconstruct(parentRow, parentCol, startRow, startCol, r, c);
             }
             for (int[] m : moves) {
                 int nr = r + m[0];
                 int nc = c + m[1];
-                if (room.isWalkable(nr, nc) && !visited[nr][nc]) {
+                if (grid.isWalkable(nr, nc) && !visited[nr][nc]) {
                     visited[nr][nc] = true;
                     parentRow[nr][nc] = r;
                     parentCol[nr][nc] = c;
@@ -246,9 +250,9 @@ public final class PathFinder {
      * Bir hucrenin istasyondan ulasilabilir olup olmadigini soyler
      * ("ulasilamaz alan tespiti" bonusu icin temel).
      */
-    public static boolean isReachable(Room room, int startRow, int startCol,
+    public static boolean isReachable(NavGrid grid, int startRow, int startCol,
                                       int goalRow, int goalCol) {
-        return !shortestPath(room, startRow, startCol, goalRow, goalCol).isEmpty()
+        return !shortestPath(grid, startRow, startCol, goalRow, goalCol).isEmpty()
                 || (startRow == goalRow && startCol == goalCol);
     }
 }

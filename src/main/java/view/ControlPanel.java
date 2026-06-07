@@ -42,9 +42,6 @@ public class ControlPanel extends VBox {
     private boolean showRays = true;
     private boolean soundOn = true;
 
-    // Algoritma radyoları (gerçekçi modda pasifleştirmek için referans tutulur)
-    private final java.util.List<RadioButton> algoRadios = new java.util.ArrayList<>();
-
     private ToggleButton dirtToolBtn;
     private ToggleButton furnitureToolBtn;
 
@@ -197,14 +194,10 @@ public class ControlPanel extends VBox {
         god.setSelected(sim.mode() == SimulationMode.GOD);
         real.setSelected(sim.mode() == SimulationMode.REALISTIC);
 
-        god.setOnAction(e -> {
-            sim.setMode(SimulationMode.GOD);
-            setAlgoRadiosEnabled(true);
-        });
-        real.setOnAction(e -> {
-            sim.setMode(SimulationMode.REALISTIC);
-            setAlgoRadiosEnabled(false); // robot kendi mantığıyla gezer
-        });
+        // Seçili algoritma artık her iki modda da geçerli (gerçekçi modda belief
+        // haritası üzerinde çalışır), bu yüzden radyolar her zaman aktif kalır.
+        god.setOnAction(e -> sim.setMode(SimulationMode.GOD));
+        real.setOnAction(e -> sim.setMode(SimulationMode.REALISTIC));
 
         CheckBox beliefBox = new CheckBox("İnanç Haritası (fog-of-war)");
         beliefBox.setSelected(showBelief);
@@ -227,17 +220,12 @@ public class ControlPanel extends VBox {
         odometryBox.setOnAction(e -> sim.setUseEstimatedPose(odometryBox.isSelected()));
 
         Label hint = new Label("Gerçekçi modda robot odayı bilmez; sensörleriyle öğrenir. "
+                + "Seçili algoritma bu modda öğrenilen harita üzerinde çalışır. "
                 + "Gerçek Odometri: konumunu da bilmez, duvarlara değdikçe düzeltir (drift).");
         hint.getStyleClass().add("hint");
         hint.setWrapText(true);
 
         return new VBox(6, god, real, beliefBox, raysBox, soundBox, odometryBox, hint);
-    }
-
-    private void setAlgoRadiosEnabled(boolean enabled) {
-        for (RadioButton rb : algoRadios) {
-            rb.setDisable(!enabled);
-        }
     }
 
     private VBox buildAlgorithms() {
@@ -251,7 +239,6 @@ public class ControlPanel extends VBox {
                 rb.setSelected(true);
             }
             rb.setOnAction(e -> sim.setAlgorithm(type));
-            algoRadios.add(rb);
             box.getChildren().add(rb);
         }
         return box;

@@ -2,7 +2,7 @@ package controller.algorithm;
 
 import controller.PathFinder;
 import model.Direction;
-import model.Room;
+import model.NavGrid;
 
 import java.util.List;
 
@@ -20,8 +20,8 @@ public class SmartStrategy implements CleaningStrategy {
     }
 
     @Override
-    public Direction chooseDirection(Room room, int row, int col, Direction current) {
-        List<int[]> path = PathFinder.pathToNearestDirt(room, row, col);
+    public Direction chooseDirection(NavGrid grid, int row, int col, Direction current) {
+        List<int[]> path = PathFinder.pathToNearestDirt(grid, row, col);
         if (path.isEmpty()) {
             return null;
         }

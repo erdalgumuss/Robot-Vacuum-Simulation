@@ -30,7 +30,7 @@ public class RobotController {
     public RobotController(Room room, Robot robot, SimulationStats stats, CleaningStrategy strategy) {
         this.robot = robot;
         this.godDriver = new OmniscientDriver(room, robot, stats, strategy);
-        this.reactiveDriver = new ReactiveDriver(room, robot, stats);
+        this.reactiveDriver = new ReactiveDriver(room, robot, stats, strategy);
         this.active = godDriver;
     }
 
@@ -80,9 +80,10 @@ public class RobotController {
         reactiveDriver.setSpeedMultiplier(speedMultiplier);
     }
 
-    /** Strateji yalnızca Tanrı Modu için anlamlıdır. */
+    /** Seçilen algoritma her iki sürücüye de uygulanır (Tanrı + Gerçekçi Mod). */
     public void setStrategy(CleaningStrategy strategy) {
         godDriver.setStrategy(strategy);
+        reactiveDriver.setStrategy(strategy);
     }
 
     /** Kapalı-çevrim lokalizasyon (gerçek odometri) yalnızca Gerçekçi Mod sürücüsünde. */

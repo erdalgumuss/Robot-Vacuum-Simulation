@@ -1,7 +1,7 @@
 package controller.algorithm;
 
 import model.Direction;
-import model.Room;
+import model.NavGrid;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,15 +25,15 @@ public class RandomStrategy implements CleaningStrategy {
     }
 
     @Override
-    public Direction chooseDirection(Room room, int row, int col, Direction current) {
-        List<Direction> walkable = CleaningStrategy.walkableDirections(room, row, col);
+    public Direction chooseDirection(NavGrid grid, int row, int col, Direction current) {
+        List<Direction> walkable = CleaningStrategy.walkableDirections(grid, row, col);
         if (walkable.isEmpty()) {
             return null;
         }
 
         List<Direction> unvisited = new ArrayList<>();
         for (Direction d : walkable) {
-            if (!CleaningStrategy.isVisited(room, row, col, d)) {
+            if (!CleaningStrategy.isVisited(grid, row, col, d)) {
                 unvisited.add(d);
             }
         }
@@ -48,6 +48,6 @@ public class RandomStrategy implements CleaningStrategy {
 
         // Tum komsular ziyaretli: rastgele dolasip donguye girmek yerine
         // en yakin ziyaretsiz/kirli hucreye kac (donguyu kir, bitisi garanti et)
-        return CleaningStrategy.escapeToNearestUncleaned(room, row, col);
+        return CleaningStrategy.escapeToNearestUncleaned(grid, row, col);
     }
 }

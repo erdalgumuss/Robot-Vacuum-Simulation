@@ -12,8 +12,11 @@ import java.util.List;
  * <p>
  * Robotun konumu surekli (piksel) oldugu icin Room, dunyayi mantiksal grid
  * olarak temsil eder; view katmani hucre boyutuyla carparak piksele cevirir.
+ * <p>
+ * {@link NavGrid}'i uygular; boylece gezinme algoritmalari gercek oda uzerinde
+ * (Tanri Modu) ayni arayuzle calisir.
  */
-public class Room {
+public class Room implements NavGrid {
 
     private final int rows;
     private final int cols;
@@ -58,6 +61,16 @@ public class Room {
 
     public boolean isWalkable(int row, int col) {
         return inBounds(row, col) && grid[row][col].isWalkable();
+    }
+
+    @Override
+    public boolean isVisited(int row, int col) {
+        return inBounds(row, col) && grid[row][col].isVisited();
+    }
+
+    @Override
+    public boolean isDirty(int row, int col) {
+        return inBounds(row, col) && grid[row][col].isDirty();
     }
 
     // --- Sarj istasyonu ---

@@ -15,6 +15,7 @@ import model.CellType;
 import model.Direction;
 import model.DirtType;
 import model.KnownMap;
+import model.LayoutType;
 import model.Robot;
 import model.RobotState;
 import model.Room;
@@ -67,6 +68,8 @@ public class TestRunner {
         testBeliefOnlyFromRays();
         testRealisticNoCollision();
         testRealisticCleansAndFinishes();
+        testRealisticAllAlgorithmsFinish();
+        testRealisticSmartLowResweep();
         testRealisticOdometryTerminates();
         testMotorModel();
         testModeSwitchRegression();
@@ -433,6 +436,62 @@ public class TestRunner {
         }
         check("gerçekçi mod tamamlanır (FINISHED)", finished);
         check("tüm erişilebilir kir temizlendi", sim.room().dirtyCellCount() == 0);
+    }
+
+    private static void testRealisticAllAlgorithmsFinish() {
+        section("Gerçekçi mod: tüm algoritmalar belief üzerinde çalışır ve biter");
+        for (AlgorithmType algo : AlgorithmType.values()) {
+            SimulationManager sim = new SimulationManager(9, 12);
+            sim.setMode(SimulationMode.REALISTIC);
+            sim.setAlgorithm(algo);              // gerçekçi modda da algoritma etkili
+            sim.addDirt(2, 3, DirtType.DUST);
+            sim.addDirt(5, 8, DirtType.LIQUID);
+            sim.addDirt(7, 5, DirtType.DUST);
+            sim.start();
+
+            boolean finished = false;
+            for (int i = 0; i < 300_000; i++) {
+                sim.controller().step(0.05);
+                RobotState s = sim.robot().state();
+                if (s == RobotState.FINISHED) { finished = true; break; }
+                if (s == RobotState.STUCK) { break; }
+            }
+            check(algo.label() + " gerçekçi modda tamamlanır", finished);
+            check(algo.label() + " tüm erişilebilir kiri temizler", sim.room().dirtyCellCount() == 0);
+        }
+    }
+
+    private static void testRealisticSmartLowResweep() {
+        section("Gerçekçi mod: Akıllı duvarda takılıp aynı yeri tekrar süpürmez");
+        SimulationManager sim = new SimulationManager(SimConstants.DEFAULT_ROWS, SimConstants.DEFAULT_COLS);
+        sim.loadLayout(LayoutType.LIVING_ROOM); // ekrandaki senaryo (mobilyalı oda)
+        sim.setMode(SimulationMode.REALISTIC);
+        sim.setAlgorithm(AlgorithmType.SMART);
+        sim.start();
+
+        int rows = sim.room().rows(), cols = sim.room().cols();
+        int[][] entries = new int[rows][cols];
+        int prevR = -1, prevC = -1, cellEntries = 0, reEntries = 0;
+        boolean finished = false;
+        for (int i = 0; i < 300_000; i++) {
+            sim.controller().step(0.05);
+            int rr = (int) (sim.robot().y() / CELL);
+            int rc = (int) (sim.robot().x() / CELL);
+            if ((rr != prevR || rc != prevC) && rr >= 0 && rr < rows && rc >= 0 && rc < cols) {
+                entries[rr][rc]++;
+                cellEntries++;
+                if (entries[rr][rc] > 1) reEntries++;
+                prevR = rr; prevC = rc;
+            }
+            RobotState s = sim.robot().state();
+            if (s == RobotState.FINISHED) { finished = true; break; }
+            if (s == RobotState.STUCK) break;
+        }
+        double resweep = cellEntries == 0 ? 1.0 : (double) reEntries / cellEntries;
+        check("Akıllı gerçekçi modda tamamlanır", finished);
+        // Tek-adım planlama: temizleneni tekrar geçmeden en yakın süpürülmemişe yönelir.
+        // (Eski mekik-tabanlı davranış ~%34 idi; tek adım ~%19'a düşürür.)
+        check("Akıllı tekrar-süpürme oranı düşük (<%28)", resweep < 0.28);
     }
 
     private static void testRealisticOdometryTerminates() {

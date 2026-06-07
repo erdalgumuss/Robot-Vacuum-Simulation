@@ -2,7 +2,7 @@ package controller.algorithm;
 
 import controller.PathFinder;
 import model.Direction;
-import model.Room;
+import model.NavGrid;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,13 +22,14 @@ public interface CleaningStrategy {
     /**
      * Robotun bulundugu hucreden sonraki gidecegi yonu secer.
      *
-     * @param room       oda modeli (komsu yuruyebilirlik/ziyaret sorgusu icin)
+     * @param grid       gezilen grid: gercek oda (Tanri Modu) veya robotun ic
+     *                   haritasi (Gercekci Mod) — bkz. {@link NavGrid}
      * @param row        robotun bulundugu hucre satiri
      * @param col        robotun bulundugu hucre sutunu
      * @param current    robotun mevcut yonu (ilk adimda null olabilir)
      * @return secilen yon; yuruyebilen komsu yoksa {@code null}
      */
-    Direction chooseDirection(Room room, int row, int col, Direction current);
+    Direction chooseDirection(NavGrid grid, int row, int col, Direction current);
 
     /** Algoritmanin ic durumunu sifirlar (yeni simulasyon basinda cagrilir). */
     default void reset() { }
@@ -36,22 +37,22 @@ public interface CleaningStrategy {
     // --- Ortak yardimcilar ---
 
     /** Belirtilen yondeki komsu hucre yuruyebilir mi? */
-    static boolean canGo(Room room, int row, int col, Direction d) {
-        return room.isWalkable(row + d.dRow(), col + d.dCol());
+    static boolean canGo(NavGrid grid, int row, int col, Direction d) {
+        return grid.isWalkable(row + d.dRow(), col + d.dCol());
     }
 
     /** Belirtilen yondeki komsu hucre daha once ziyaret edilmis mi? */
-    static boolean isVisited(Room room, int row, int col, Direction d) {
+    static boolean isVisited(NavGrid grid, int row, int col, Direction d) {
         int nr = row + d.dRow();
         int nc = col + d.dCol();
-        return room.inBounds(nr, nc) && room.cell(nr, nc).isVisited();
+        return grid.inBounds(nr, nc) && grid.isVisited(nr, nc);
     }
 
     /** Yuruyebilen tum komsu yonler. */
-    static List<Direction> walkableDirections(Room room, int row, int col) {
+    static List<Direction> walkableDirections(NavGrid grid, int row, int col) {
         List<Direction> result = new ArrayList<>(4);
         for (Direction d : Direction.values()) {
-            if (canGo(room, row, col, d)) {
+            if (canGo(grid, row, col, d)) {
                 result.add(d);
             }
         }
@@ -78,7 +79,7 @@ public interface CleaningStrategy {
      * Ortak kacis: yerel olarak sikisinca (tum komsular ziyaretli) en yakin
      * ziyaretsiz/kirli hucreye BFS ile yonelir. Donguyu kirar, bitisi garanti eder.
      */
-    static Direction escapeToNearestUncleaned(Room room, int row, int col) {
-        return firstStep(PathFinder.pathToNearestUncleaned(room, row, col), row, col);
+    static Direction escapeToNearestUncleaned(NavGrid grid, int row, int col) {
+        return firstStep(PathFinder.pathToNearestUncleaned(grid, row, col), row, col);
     }
 }

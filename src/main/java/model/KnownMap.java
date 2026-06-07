@@ -7,8 +7,12 @@ package model;
  * {@link Belief#UNKNOWN}'dur ve YALNIZCA sensör gözlemleriyle güncellenir
  * (hiçbir ışının dokunmadığı hücre asla yazılmaz). Robotun gerçekçi moddaki
  * tüm kararları bu haritaya dayanır; gerçek odaya bakmaz.
+ * <p>
+ * {@link NavGrid}'i uygular; böylece aynı gezinme algoritmaları gerçek oda
+ * yerine bu belief haritası üzerinde de çalışabilir (Gerçekçi Mod). Burada
+ * <b>bilinmeyen</b> hücreler "yürünebilir" sayılır — robot keşfe açık kalsın.
  */
-public class KnownMap {
+public class KnownMap implements NavGrid {
 
     public enum Belief { UNKNOWN, FREE, OBSTACLE }
 
@@ -44,6 +48,18 @@ public class KnownMap {
 
     public boolean isFree(int r, int c) { return at(r, c) == Belief.FREE; }
     public boolean isKnown(int r, int c) { return at(r, c) != Belief.UNKNOWN; }
+
+    // --- NavGrid: gezinme algoritmalari icin grid gorunumu ---
+    // Bilinmeyen (UNKNOWN) hucreler yurunebilir sayilir -> robot kesfe yonelir.
+
+    @Override
+    public boolean isWalkable(int r, int c) { return at(r, c) != Belief.OBSTACLE; }
+
+    @Override
+    public boolean isVisited(int r, int c) { return isCleaned(r, c); }
+
+    @Override
+    public boolean isDirty(int r, int c) { return isDirtSeen(r, c); }
 
     /** FREE yalnızca daha önce OBSTACLE işaretlenmediyse yazılır (engel kalıcıdır). */
     public void markFree(int r, int c) {

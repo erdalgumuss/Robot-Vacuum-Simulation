@@ -1,5 +1,6 @@
 package controller.drive;
 
+import controller.algorithm.CleaningStrategy;
 import controller.perception.BeliefUpdater;
 import controller.perception.PerceptionService;
 import model.Cell;
@@ -16,9 +17,7 @@ import util.SimConstants;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.function.BiPredicate;
 
@@ -27,11 +26,17 @@ import java.util.function.BiPredicate;
  * yalnızca bunlardan kendi iç haritasını ({@link KnownMap}) öğrenir ve serbest
  * açılı (sürekli) hareketle gezer.
  * <p>
- * Davranış: belief haritası üzerinde en yakın <i>henüz üstünden geçilmemiş</i>
- * hücreye (frontier) yönelir, yolda kir sezerse durup temizler, gerçek bir engele
- * çarptığında (sensörle) sekerek yön değiştirir (bump-and-turn). Batarya düşünce
- * veya keşif bitince belief üzerinden istasyona döner. Karar girdisi olarak gerçek
- * {@link Room}'a asla bakmaz; tek istisna {@link PerceptionService} (sensör).
+ * Davranış: seçili temizlik algoritması ({@link CleaningStrategy}) <b>belief
+ * haritası üzerinde</b> bir sonraki hedef hücreyi seçer (Tanrı Modu'yla aynı
+ * stratejiler; tek fark, gerçek oda yerine robotun öğrendiği harita üzerinde
+ * çalışmaları). Robot o hücreye serbest açılı hareketle gider, yolda kir sezerse
+ * durup temizler, gerçek bir engele çarptığında (sensörle) sekerek yön değiştirir
+ * (bump-and-turn). Algoritma yön veremezse (ör. Akıllı: görünürde kir yok) en yakın
+ * süpürülmemiş hücreye yönelir. Hedef hep tek adım planlanır: robot her hücrede
+ * yeniden sezdiği için bilinmeyen engele uzun yol planlayıp çarpmaz ve temizlediği
+ * yeri tekrar süpürmeden ilerler. Batarya düşünce veya keşif bitince belief
+ * üzerinden istasyona döner. Karar girdisi olarak gerçek {@link Room}'a asla
+ * bakmaz; tek istisna {@link PerceptionService} (sensör).
  */
 public class ReactiveDriver implements Driver {
 
@@ -44,22 +49,17 @@ public class ReactiveDriver implements Driver {
     private final SimulationStats stats;
     private final Random random = new Random();
 
+    // Seçili temizlik algoritması: hedef hücreyi belief haritası üzerinde seçer.
+    private CleaningStrategy strategy;
+    // Stratejiye verilen "mevcut yön" (grid bazında); spiral/duvar-takip karakterini korur.
+    private Direction stratDir;
+
     private double speedMultiplier = 1.5;
     private final Deque<int[]> path = new ArrayDeque<>();
     private boolean returningToFinish;
     private int noProgressTicks;
     private double lastDistToWp = Double.MAX_VALUE;
     private static final double ALIGN_TOLERANCE = Math.toRadians(55); // önce yönel, sonra ilerle
-
-    // Ulaşamadığı keşif hedefini bir süre erteler (rastgele debelenme yerine başka yere yönelir)
-    private long tick;
-    private int goalRow = -1;
-    private int goalCol = -1;
-    private final Map<Integer, Long> deferred = new HashMap<>();
-    private static final long DEFER_TICKS = 400;
-
-    // Mekik (boustrophedon) yön durumu: +1 doğu, -1 batı
-    private int sweepDirX = 1;
 
     // Odometri: robotun tahmin ettiği konum (gerçek hareket + küçük hata birikimi)
     private double estX;
@@ -78,15 +78,24 @@ public class ReactiveDriver implements Driver {
     private double tickDirtResistance;
     private double tickMoved;
 
-    public ReactiveDriver(Room room, Robot robot, SimulationStats stats) {
+    public ReactiveDriver(Room room, Robot robot, SimulationStats stats, CleaningStrategy strategy) {
         this.room = room;
         this.robot = robot;
         this.stats = stats;
+        this.strategy = strategy;
     }
 
     @Override
     public void setSpeedMultiplier(double speedMultiplier) {
         this.speedMultiplier = speedMultiplier;
+    }
+
+    /** Seçili temizlik algoritmasını değiştirir (gerçekçi modda da etkilidir). */
+    public void setStrategy(CleaningStrategy strategy) {
+        this.strategy = strategy;
+        this.strategy.reset();
+        path.clear();
+        stratDir = null;
     }
 
     /** Kapalı-çevrim lokalizasyon (gerçek odometri + scan-match) aç/kapa. */
@@ -129,10 +138,10 @@ public class ReactiveDriver implements Driver {
         robot.setLastReading(SensorReading.empty());
         robot.setMotorTelemetry(0, 0, 0);
         path.clear();
-        deferred.clear();
-        goalRow = -1;
-        goalCol = -1;
-        sweepDirX = 1;
+        stratDir = null;
+        if (strategy != null) {
+            strategy.reset();
+        }
         returningToFinish = false;
         noProgressTicks = 0;
         lastDistToWp = Double.MAX_VALUE;
@@ -145,7 +154,6 @@ public class ReactiveDriver implements Driver {
 
     @Override
     public void step(double dt) {
-        tick++;
         robot.decayContact();
         KnownMap map = robot.knownMap();
         if (map == null) {
@@ -215,25 +223,51 @@ public class ReactiveDriver implements Driver {
             return;
         }
 
-        // 3) Hedef yoksa mekik (boustrophedon) planlamasıyla yeni hedef seç
+        // 3) Hedef yoksa seçili algoritma (belief üzerinde) bir sonraki hedefi seçsin
         if (path.isEmpty()) {
-            List<int[]> p = beliefPathBoustrophedon(map);
+            List<int[]> p = planPath(map);
             if (p.isEmpty()) {
-                // Belki tüm hedefler ertelendi: ertelemeleri temizleyip tekrar dene
-                deferred.clear();
-                p = beliefPathBoustrophedon(map);
-                if (p.isEmpty()) {
-                    beginReturn(true); // keşif gerçekten bitti, eve dön ve tamamla
-                    return;
-                }
+                beginReturn(true); // keşif bitti, eve dön ve tamamla
+                return;
             }
             path.addAll(p);
-            int[] goal = p.get(p.size() - 1);
-            goalRow = goal[0];
-            goalCol = goal[1];
         }
 
         followPath(dt, reading);
+    }
+
+    /**
+     * Seçili algoritmayla belief haritası üzerinde bir sonraki hedefi planlar.
+     * <p>
+     * {@link CleaningStrategy} robotun şu an kendini sandığı hücreden bir yön seçer;
+     * bu, komşu hücreye <b>tek adımlık</b> bir yol olur (Tanrı Modu'ndaki hücre-hücre
+     * gezinmenin aynısı, fakat gerçek oda yerine öğrenilen harita üzerinde). Strateji
+     * yön veremezse (Akıllı: görünürde kir yok) en yakın temizlenmemiş hücreye doğru
+     * tek adım atılır. Tek adımlık planlama önemlidir: robot her hücrede yeniden sezer,
+     * böylece bilinmeyen engellere uzun yol planlayıp çarpmaz ve temizlediği yeri
+     * tekrar süpürmeden en yakın süpürülmemiş alana geçer. Hiç hedef kalmazsa
+     * (boş dönüş) keşif bitmiştir.
+     */
+    private List<int[]> planPath(KnownMap map) {
+        int r = decRow();
+        int c = decCol();
+        // 1) Seçili algoritma belief üzerinde bir yön seçsin
+        Direction d = strategy.chooseDirection(map, r, c, stratDir);
+        // 2) Veremezse (Akıllı: görünürde kir yok) en yakın TEMİZLENMEMİŞ hücreye yönel
+        if (d == null) {
+            d = CleaningStrategy.escapeToNearestUncleaned(map, r, c);
+        }
+        if (d != null) {
+            int nr = r + d.dRow();
+            int nc = c + d.dCol();
+            if (map.at(nr, nc) != KnownMap.Belief.OBSTACLE) {
+                stratDir = d;
+                List<int[]> step = new java.util.ArrayList<>(1);
+                step.add(new int[]{nr, nc});
+                return step;
+            }
+        }
+        return java.util.Collections.emptyList(); // keşif bitti
     }
 
     // --- Dönüş modu (belief üzerinde) ---
@@ -331,8 +365,7 @@ public class ReactiveDriver implements Driver {
         } else if (aligned && !moved) {
             // Hizalıyım ama ilerleyemedim = haritada olmayan gerçek engele ÇARPTIM.
             robot.triggerContact();   // tampon animasyonu + tık sesi için temas sinyali
-            deferGoal();
-            path.clear();
+            path.clear();             // yolu bırak; bir sonraki tik en yakın süpürülmemişe yönelir
             bumpTurn(reading);
             noProgressTicks++;
         } else if (distToWp < lastDistToWp - 0.05) {
@@ -343,25 +376,12 @@ public class ReactiveDriver implements Driver {
         lastDistToWp = distToWp;
 
         if (noProgressTicks > STUCK_TICKS) {
-            // Sıkıştı: hedefi ertele, bırak ve rastgele yöne sek (kurtulma davranışı)
-            deferGoal();
+            // Sıkıştı: yolu bırak ve rastgele yöne sek (kurtulma davranışı)
             path.clear();
             robot.setHeading(random.nextDouble() * 2 * Math.PI - Math.PI);
             noProgressTicks = 0;
             lastDistToWp = Double.MAX_VALUE;
         }
-    }
-
-    /** Ulaşılamayan keşif hedefini bir süre erteler (yalnız temizlik modunda). */
-    private void deferGoal() {
-        if (robot.state() == RobotState.CLEANING && goalRow >= 0) {
-            deferred.put(goalRow * room.cols() + goalCol, tick + DEFER_TICKS);
-        }
-    }
-
-    private boolean isDeferred(int row, int col) {
-        Long expiry = deferred.get(row * room.cols() + col);
-        return expiry != null && expiry > tick;
     }
 
     private void smoothTurn(double targetAngle, double dt) {
@@ -574,75 +594,6 @@ public class ReactiveDriver implements Driver {
                     q.add(new int[]{nr, nc});
                 }
             }
-        }
-        return Collections.emptyList();
-    }
-
-    /**
-     * Mekik (boustrophedon) planlaması: belief üzerinde tüm erişilebilir alanı
-     * tarar; mevcut satırda <b>tarama yönünde en uzaktaki</b> temizlenmemiş hücreyi
-     * hedef alır (satırı baştan sona süpür). O satır bitince en yakın temizlenmemiş
-     * hücreye geçer ve yönü çevirir (serpantin). Güvenli fallback: en yakın hücre.
-     */
-    private List<int[]> beliefPathBoustrophedon(KnownMap map) {
-        int sr = decRow();
-        int sc = decCol();
-        int rows = map.rows();
-        int cols = map.cols();
-        boolean[][] visited = new boolean[rows][cols];
-        int[][] pr = new int[rows][cols];
-        int[][] pc = new int[rows][cols];
-        int[][] dist = new int[rows][cols];
-        Deque<int[]> q = new ArrayDeque<>();
-        q.add(new int[]{sr, sc});
-        visited[sr][sc] = true;
-        int[][] moves = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
-
-        int rowTargetCol = Integer.MIN_VALUE; // aynı satırda, tarama yönünde en uzak
-        int rowTargetRow = -1;
-        int nearestRow = -1, nearestCol = -1, nearestDist = Integer.MAX_VALUE;
-
-        while (!q.isEmpty()) {
-            int[] cur = q.poll();
-            int r = cur[0], c = cur[1];
-            boolean candidate = !(r == sr && c == sc) && !map.isCleaned(r, c) && !isDeferred(r, c);
-            if (candidate) {
-                if (dist[r][c] < nearestDist) {
-                    nearestDist = dist[r][c];
-                    nearestRow = r;
-                    nearestCol = c;
-                }
-                if (r == sr && (c - sc) * sweepDirX > 0) {
-                    int ahead = (c - sc) * sweepDirX;
-                    if (ahead > rowTargetCol) {
-                        rowTargetCol = ahead;
-                        rowTargetRow = r;
-                    }
-                }
-            }
-            for (int[] m : moves) {
-                int nr = r + m[0];
-                int nc = c + m[1];
-                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited[nr][nc]
-                        && map.at(nr, nc) != KnownMap.Belief.OBSTACLE) {
-                    visited[nr][nc] = true;
-                    pr[nr][nc] = r;
-                    pc[nr][nc] = c;
-                    dist[nr][nc] = dist[r][c] + 1;
-                    q.add(new int[]{nr, nc});
-                }
-            }
-        }
-
-        if (rowTargetRow >= 0) {
-            // Aynı satırı süpürmeye devam
-            int targetCol = sc + rowTargetCol * sweepDirX;
-            return reconstruct(pr, pc, sr, sc, rowTargetRow, targetCol);
-        }
-        if (nearestRow >= 0) {
-            // Satır bitti: en yakın temizlenmemiş hücreye geç ve tarama yönünü çevir
-            sweepDirX = -sweepDirX;
-            return reconstruct(pr, pc, sr, sc, nearestRow, nearestCol);
         }
         return Collections.emptyList();
     }
