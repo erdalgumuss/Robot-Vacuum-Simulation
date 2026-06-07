@@ -2,7 +2,7 @@
 
 **Ders:** BZ 214 Visual Programming
 **Proje:** Robot Vacuum Cleaning Simulation (Java + JavaFX)
-**Grup:** 20
+**Grup:** 30
 
 | Üye | Öğrenci No |
 |-----|------------|

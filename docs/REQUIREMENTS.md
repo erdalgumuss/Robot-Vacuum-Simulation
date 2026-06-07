@@ -4,7 +4,7 @@ BZ 214 Visual Programming — Robot Vacuum Cleaning Simulation
 Bu döküman, ödev PDF'indeki **her maddeyi** kodumuzdaki karşılığına eşler.
 Durum: ✅ tam · 🟡 kısmî/planlı · ⏳ yapılacak
 
-**Grup:** 20
+**Grup:** 30
 **Üyeler:** Erdal Gümüş (1030510069), Melisa Şimşek, Batuhan Pehlivanoğlu
 
 ---

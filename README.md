@@ -9,7 +9,7 @@ thanks to the course instructor and contributors.
 
 ## Grup Bilgileri
 
-**Grup:** 20
+**Grup:** 30
 
 | Üye | Öğrenci No |
 |-----|------------|
@@ -119,6 +119,7 @@ Detaylı madde eşlemesi için:
 
 | Dosya | Açıklama |
 |------|----------|
+| `docs/PROJE-REHBERI.md` | **Uçtan uca, sade dil rehber** — ekibin projeyi anlaması için |
 | `docs/REQUIREMENTS.md` | Ödev maddeleri ile kod karşılıklarının eşlemesi |
 | `docs/ASSETS.md` | Üretilen asset envanteri ve üretim kılavuzu |
 | `docs/report/REPORT.md` | Detaylı proje raporu |
@@ -145,7 +146,7 @@ tasarlanmıştır.
 önerilen ad:
 
 ```text
-group20.zip
+group30.zip
 ```
 
 ZIP içinde kaynak kodlar, JavaFX proje dosyaları, asset dosyaları, README, proje
